@@ -11,37 +11,24 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * 用户表
+ * 住户与其家中烟感设备的绑定关系表（用于告警重点提示）
  */
 @Data
 @EqualsAndHashCode(callSuper = false)
 @Accessors(chain = true)
-@TableName("users")
-public class Users implements Serializable {
+@TableName("user_device")
+public class UserDevice implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
     @TableId(value = "id", type = IdType.NONE)
     private Long id;
 
-    private String username;
+    /** 住户（RESIDENT） */
+    private Long userId;
 
-    private String password;
-
-    /** 角色: RESIDENT / COMMUNITY_ADMIN / SYSTEM_ADMIN / FIREFIGHTER */
-    private String role;
-
-    /** 归属小区（数据权限） */
-    private Long communityId;
-
-    /** 账号状态: PENDING / ACTIVE / DISABLED */
-    private String status;
-
-    /** 真实姓名（审核用） */
-    private String realName;
-
-    /** 联系电话（审核用） */
-    private String phone;
+    /** 烟感设备 */
+    private Long deviceId;
 
     private LocalDateTime createdAt;
 }

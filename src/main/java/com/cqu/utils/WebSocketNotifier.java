@@ -18,6 +18,7 @@ public class WebSocketNotifier {
     public static final String TOPIC_DEVICE_STATUS = "/topic/device-status";
     public static final String TOPIC_DEVICE_ONLINE = "/topic/device-online";
     public static final String TOPIC_ALARMS = "/topic/alarms";
+    public static final String TOPIC_ALARMS_FIRE = "/topic/alarms/fire";
 
     private final SimpMessagingTemplate messagingTemplate;
 
@@ -40,7 +41,7 @@ public class WebSocketNotifier {
         send(TOPIC_DEVICE_ONLINE, "DEVICE_ONLINE_STATUS_CHANGED", data);
     }
 
-    /** 新告警 */
+    /** 新告警（通用） */
     public void pushAlarm(Object data) {
         send(TOPIC_ALARMS, "ALARM_CREATED", data);
     }
@@ -48,6 +49,27 @@ public class WebSocketNotifier {
     /** 告警升级 */
     public void pushAlarmEscalated(Object data) {
         send(TOPIC_ALARMS, "ALARM_ESCALATED", data);
+    }
+
+    /** 火警跨小区广播 */
+    public void pushFireAlarm(Object data) {
+        send(TOPIC_ALARMS_FIRE, "ALARM_CREATED", data);
+    }
+
+    /** 本小区告警推送 */
+    public void pushCommunityAlarm(Long communityId, Object data) {
+        send("/topic/community/" + communityId + "/alarms", "ALARM_CREATED", data);
+    }
+
+    /** 住户绑定设备告警重点提示（定向推送） */
+    public void pushUserAlert(Long userId, Object data) {
+        WebSocketMessage msg = WebSocketMessage.builder()
+                .type("ALARM_HIGHLIGHT")
+                .timestamp(LocalDateTime.now())
+                .data(data)
+                .build();
+        log.info("WebSocket 重点提示 → /user/{}/queue/alerts", userId);
+        messagingTemplate.convertAndSendToUser(String.valueOf(userId), "/queue/alerts", msg);
     }
 
     private void send(String topic, String type, Object data) {

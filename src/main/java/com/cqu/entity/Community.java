@@ -11,37 +11,25 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * 用户表
+ * 小区表（负责人机制）
  */
 @Data
 @EqualsAndHashCode(callSuper = false)
 @Accessors(chain = true)
-@TableName("users")
-public class Users implements Serializable {
+@TableName("community")
+public class Community implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
     @TableId(value = "id", type = IdType.NONE)
     private Long id;
 
-    private String username;
+    private String name;
 
-    private String password;
+    private String address;
 
-    /** 角色: RESIDENT / COMMUNITY_ADMIN / SYSTEM_ADMIN / FIREFIGHTER */
-    private String role;
-
-    /** 归属小区（数据权限） */
-    private Long communityId;
-
-    /** 账号状态: PENDING / ACTIVE / DISABLED */
-    private String status;
-
-    /** 真实姓名（审核用） */
-    private String realName;
-
-    /** 联系电话（审核用） */
-    private String phone;
+    /** 负责人（COMMUNITY_ADMIN 用户 ID），可空 */
+    private Long adminUserId;
 
     private LocalDateTime createdAt;
 }

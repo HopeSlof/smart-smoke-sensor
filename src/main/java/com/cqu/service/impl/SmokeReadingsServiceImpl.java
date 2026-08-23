@@ -12,6 +12,7 @@ import com.cqu.mapper.DevicesMapper;
 import com.cqu.mapper.SmokeReadingsMapper;
 import com.cqu.service.IAlertRuleEngine;
 import com.cqu.service.ISmokeReadingsService;
+import com.cqu.utils.DataScope;
 import com.cqu.utils.WebSocketNotifier;
 import com.cqu.vo.LatestSmokeVO;
 import com.cqu.vo.PageResult;
@@ -52,6 +53,8 @@ public class SmokeReadingsServiceImpl extends ServiceImpl<SmokeReadingsMapper, S
         wrapper.eq(deviceId != null, SmokeReadings::getDeviceId, deviceId);
         wrapper.ge(startTime != null, SmokeReadings::getCreatedAt, startTime);
         wrapper.le(endTime != null, SmokeReadings::getCreatedAt, endTime);
+        // 数据权限：居民/小区管理员只看本小区
+        applyCommunityScope(wrapper);
         wrapper.orderByDesc(SmokeReadings::getCreatedAt);
 
         Page<SmokeReadings> pageResult = this.page(new Page<>(page, pageSize), wrapper);
@@ -136,6 +139,21 @@ public class SmokeReadingsServiceImpl extends ServiceImpl<SmokeReadingsMapper, S
 
         // 规则引擎分级判定（触发告警）
         alertRuleEngine.evaluate(deviceId, smokeConcentration, temperature, coConcentration);
+    }
+
+    private void applyCommunityScope(LambdaQueryWrapper<SmokeReadings> wrapper) {
+        DataScope.Scope scope = DataScope.resolve();
+        if (scope.all() || scope.communityId() == null) {
+            return;
+        }
+        List<Long> deviceIds = devicesMapper.selectList(
+                new LambdaQueryWrapper<Devices>().eq(Devices::getCommunityId, scope.communityId()))
+                .stream().map(Devices::getId).collect(Collectors.toList());
+        if (deviceIds.isEmpty()) {
+            wrapper.eq(SmokeReadings::getDeviceId, 0L);
+        } else {
+            wrapper.in(SmokeReadings::getDeviceId, deviceIds);
+        }
     }
 
     private Map<Long, String> buildDeviceNameMap(List<SmokeReadings> readings) {

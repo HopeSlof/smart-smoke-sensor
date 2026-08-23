@@ -39,6 +39,7 @@ public class AlarmLogsController {
         return Result.success(alarmLogsService.pageAlarms(page, pageSize, deviceId, alarmType, alarmLevel, status));
     }
 
+    @RequireRole({Role.SYSTEM_ADMIN, Role.COMMUNITY_ADMIN, Role.FIREFIGHTER})
     @GetMapping("/statistics")
     public Result<AlarmStatisticsVO> statistics() {
         return Result.success(alarmLogsService.getStatistics());

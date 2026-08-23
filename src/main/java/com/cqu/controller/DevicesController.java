@@ -3,6 +3,8 @@ package com.cqu.controller;
 import com.cqu.common.annotation.RequireRole;
 import com.cqu.common.enums.Role;
 import com.cqu.service.IDevicesService;
+import com.cqu.service.IUserDeviceService;
+import com.cqu.vo.BindDeviceRequest;
 import com.cqu.vo.DeviceAddRequest;
 import com.cqu.vo.DeviceDetailVO;
 import com.cqu.vo.DeviceStatisticsVO;
@@ -32,6 +34,10 @@ public class DevicesController {
     @Autowired
     private IDevicesService devicesService;
 
+    @Autowired
+    private IUserDeviceService userDeviceService;
+
+    @RequireRole({Role.SYSTEM_ADMIN, Role.COMMUNITY_ADMIN, Role.RESIDENT})
     @GetMapping
     public Result<PageResult<DeviceVO>> list(@RequestParam(defaultValue = "1") int page,
                                              @RequestParam(defaultValue = "10") int pageSize,
@@ -41,11 +47,13 @@ public class DevicesController {
         return Result.success(devicesService.pageDevices(page, pageSize, deviceName, deviceType, onlineStatus));
     }
 
+    @RequireRole({Role.SYSTEM_ADMIN, Role.COMMUNITY_ADMIN})
     @GetMapping("/statistics")
     public Result<DeviceStatisticsVO> statistics() {
         return Result.success(devicesService.getStatistics());
     }
 
+    @RequireRole({Role.SYSTEM_ADMIN, Role.COMMUNITY_ADMIN, Role.RESIDENT})
     @GetMapping("/{id}")
     public Result<DeviceDetailVO> detail(@PathVariable Long id) {
         return Result.success(devicesService.getDeviceDetail(id));
@@ -70,6 +78,20 @@ public class DevicesController {
     public Result<String> delete(@PathVariable Long id) {
         devicesService.deleteDevice(id);
         return Result.success("删除成功");
+    }
+
+    @RequireRole({Role.SYSTEM_ADMIN, Role.COMMUNITY_ADMIN})
+    @PutMapping("/{deviceId}/bind")
+    public Result<String> bind(@PathVariable Long deviceId, @RequestBody BindDeviceRequest request) {
+        userDeviceService.bind(deviceId, request.getUserId());
+        return Result.success("绑定成功");
+    }
+
+    @RequireRole({Role.SYSTEM_ADMIN, Role.COMMUNITY_ADMIN})
+    @PutMapping("/{deviceId}/unbind")
+    public Result<String> unbind(@PathVariable Long deviceId, @RequestBody BindDeviceRequest request) {
+        userDeviceService.unbind(deviceId, request.getUserId());
+        return Result.success("解绑成功");
     }
 
     /** 硬件心跳上报（HTTP 降级通道，不校验 JWT） */

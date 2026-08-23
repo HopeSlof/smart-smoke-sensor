@@ -1,5 +1,7 @@
 package com.cqu.controller;
 
+import com.cqu.common.annotation.RequireRole;
+import com.cqu.common.enums.Role;
 import com.cqu.service.ISmokeReadingsService;
 import com.cqu.vo.LatestSmokeVO;
 import com.cqu.vo.PageResult;
@@ -30,6 +32,7 @@ public class SmokeReadingsController {
     @Autowired
     private ISmokeReadingsService smokeReadingsService;
 
+    @RequireRole({Role.SYSTEM_ADMIN, Role.COMMUNITY_ADMIN, Role.RESIDENT})
     @GetMapping
     public Result<PageResult<SmokeReadingsVO>> list(
             @RequestParam(defaultValue = "1") int page,
@@ -40,11 +43,13 @@ public class SmokeReadingsController {
         return Result.success(smokeReadingsService.pageReadings(page, pageSize, deviceId, startTime, endTime));
     }
 
+    @RequireRole({Role.SYSTEM_ADMIN, Role.COMMUNITY_ADMIN, Role.RESIDENT})
     @GetMapping("/latest/{deviceId}")
     public Result<LatestSmokeVO> latest(@PathVariable Long deviceId) {
         return Result.success(smokeReadingsService.getLatest(deviceId));
     }
 
+    @RequireRole({Role.SYSTEM_ADMIN, Role.COMMUNITY_ADMIN, Role.RESIDENT})
     @GetMapping("/trend")
     public Result<List<TrendPointVO>> trend(
             @RequestParam Long deviceId,

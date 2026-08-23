@@ -20,10 +20,14 @@ CREATE TABLE IF NOT EXISTS users
     password     VARCHAR(256) NOT NULL,
     role         VARCHAR(32)  NOT NULL DEFAULT 'RESIDENT', -- RESIDENT | COMMUNITY_ADMIN | SYSTEM_ADMIN | FIREFIGHTER
     community_id BIGINT,                                   -- 归属小区（居民/小区管理员绑定）
+    status       VARCHAR(16)  NOT NULL DEFAULT 'ACTIVE',   -- PENDING | ACTIVE | DISABLED
+    real_name    VARCHAR(64),                              -- 真实姓名（审核用）
+    phone        VARCHAR(32),                              -- 联系电话（审核用）
     created_at   TIMESTAMP    NOT NULL DEFAULT now()
 );
 COMMENT ON TABLE users IS '用户表';
 COMMENT ON COLUMN users.role IS '角色: RESIDENT-居民, COMMUNITY_ADMIN-小区管理员, SYSTEM_ADMIN-系统管理员, FIREFIGHTER-消防员';
+COMMENT ON COLUMN users.status IS '账号状态: PENDING-待审核, ACTIVE-正常, DISABLED-禁用';
 
 -- 2. 烟感设备表
 CREATE TABLE IF NOT EXISTS devices
@@ -127,3 +131,28 @@ CREATE TABLE IF NOT EXISTS knowledge_chunks
 COMMENT ON TABLE knowledge_chunks IS 'RAG 知识库 — 消防应急预案/疏散/设备维护知识向量';
 -- 向量索引（先灌数据再建索引，否则 IVFFlat 无效）
 -- CREATE INDEX IF NOT EXISTS idx_knowledge_embedding ON knowledge_chunks USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+
+-- 8. 小区表（负责人机制）
+CREATE TABLE IF NOT EXISTS community
+(
+    id            BIGSERIAL PRIMARY KEY,
+    name          VARCHAR(128) NOT NULL,           -- 小区名称
+    address       VARCHAR(256),                    -- 小区地址
+    admin_user_id BIGINT,                          -- 负责人（COMMUNITY_ADMIN 用户 ID），可空
+    created_at    TIMESTAMP    NOT NULL DEFAULT now()
+);
+COMMENT ON TABLE community IS '小区表';
+COMMENT ON COLUMN community.admin_user_id IS '小区负责人（COMMUNITY_ADMIN 用户 ID）';
+
+-- 9. 住户-设备绑定表（用于告警重点提示）
+CREATE TABLE IF NOT EXISTS user_device
+(
+    id         BIGSERIAL PRIMARY KEY,
+    user_id    BIGINT      NOT NULL,   -- 住户（RESIDENT）
+    device_id  BIGINT      NOT NULL,   -- 烟感设备
+    created_at TIMESTAMP   NOT NULL DEFAULT now(),
+    UNIQUE (user_id, device_id)        -- 同一住户对同一设备只绑定一次
+);
+COMMENT ON TABLE user_device IS '住户与其家中烟感设备的绑定关系表（用于告警重点提示）';
+CREATE INDEX IF NOT EXISTS idx_user_device_user ON user_device (user_id);
+CREATE INDEX IF NOT EXISTS idx_user_device_device ON user_device (device_id);

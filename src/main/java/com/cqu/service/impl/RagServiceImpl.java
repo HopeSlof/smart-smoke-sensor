@@ -110,9 +110,24 @@ public class RagServiceImpl extends ServiceImpl<KnowledgeChunksMapper, Knowledge
                     llmConfig.getBaseUrl() + "/chat/completions",
                     new HttpEntity<>(body, headers), Map.class);
 
-            List<Map<String, Object>> choices = (List<Map<String, Object>>) response.getBody().get("choices");
+            Map<String, Object> respBody = response.getBody();
+            if (respBody == null) {
+                throw new BusinessException("AI 服务返回空响应");
+            }
+
+            List<Map<String, Object>> choices = (List<Map<String, Object>>) respBody.get("choices");
+            if (choices == null || choices.isEmpty()) {
+                throw new BusinessException("AI 服务未返回有效回答");
+            }
+
             Map<String, Object> message = (Map<String, Object>) choices.get(0).get("message");
-            return (String) message.get("content");
+            if (message == null || message.get("content") == null) {
+                throw new BusinessException("AI 服务返回消息格式异常");
+            }
+
+            return message.get("content").toString();
+        } catch (BusinessException e) {
+            throw e;
         } catch (Exception e) {
             log.error("调用 Chat API 失败: {}", e.getMessage());
             throw new BusinessException("AI 服务调用失败: " + e.getMessage());
@@ -127,17 +142,37 @@ public class RagServiceImpl extends ServiceImpl<KnowledgeChunksMapper, Knowledge
 
         Map<String, Object> body = Map.of("model", llmConfig.getEmbeddingModel(), "input", text);
 
-        ResponseEntity<Map> response = restTemplate.postForEntity(
-                llmConfig.getEmbeddingBaseUrl() + "/embeddings",
-                new HttpEntity<>(body, headers), Map.class);
+        try {
+            ResponseEntity<Map> response = restTemplate.postForEntity(
+                    llmConfig.getEmbeddingBaseUrl() + "/embeddings",
+                    new HttpEntity<>(body, headers), Map.class);
 
-        List<Map<String, Object>> data = (List<Map<String, Object>>) response.getBody().get("data");
-        List<Double> vector = (List<Double>) data.get(0).get("embedding");
+            Map<String, Object> respBody = response.getBody();
+            if (respBody == null) {
+                throw new BusinessException("Embedding 服务返回空响应");
+            }
 
-        float[] result = new float[vector.size()];
-        for (int i = 0; i < vector.size(); i++) {
-            result[i] = vector.get(i).floatValue();
+            List<Map<String, Object>> data = (List<Map<String, Object>>) respBody.get("data");
+            if (data == null || data.isEmpty()) {
+                throw new BusinessException("Embedding 服务未返回有效向量");
+            }
+
+            List<Double> vector = (List<Double>) data.get(0).get("embedding");
+            if (vector == null || vector.isEmpty()) {
+                throw new BusinessException("Embedding 服务返回向量格式异常");
+            }
+
+            float[] result = new float[vector.size()];
+            for (int i = 0; i < vector.size(); i++) {
+                Double value = vector.get(i);
+                result[i] = value == null ? 0.0f : value.floatValue();
+            }
+            return result;
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("调用 Embedding API 失败: {}", e.getMessage());
+            throw new BusinessException("Embedding 服务调用失败: " + e.getMessage());
         }
-        return result;
     }
 }

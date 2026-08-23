@@ -6,22 +6,19 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * 注册请求
+ * 管理员创建用户请求
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class RegisterRequest {
+public class UserCreateRequest {
 
     private String username;
     private String password;
-    /** 角色: RESIDENT / COMMUNITY_ADMIN / SYSTEM_ADMIN / FIREFIGHTER（注册时后端强制 RESIDENT，忽略此字段） */
+    /** 角色: RESIDENT / COMMUNITY_ADMIN / FIREFIGHTER */
     private String role;
-    /** 归属小区 */
     private Long communityId;
-    /** 真实姓名（审核用） */
     private String realName;
-    /** 联系电话（审核用） */
     private String phone;
 }

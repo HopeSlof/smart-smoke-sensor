@@ -7,14 +7,19 @@ import com.cqu.common.enums.AlarmLevel;
 import com.cqu.common.enums.AlarmStatus;
 import com.cqu.common.enums.AlarmType;
 import com.cqu.common.enums.Disposition;
+import com.cqu.common.enums.Role;
 import com.cqu.common.exception.BusinessException;
 import com.cqu.common.exception.ErrorCode;
 import com.cqu.entity.AlarmLogs;
 import com.cqu.entity.Devices;
+import com.cqu.entity.UserDevice;
 import com.cqu.mapper.AlarmLogsMapper;
 import com.cqu.mapper.DevicesMapper;
+import com.cqu.mapper.UserDeviceMapper;
 import com.cqu.service.IAlarmLogsService;
 import com.cqu.service.IControlLogsService;
+import com.cqu.utils.DataScope;
+import com.cqu.utils.UserHolder;
 import com.cqu.utils.WebSocketNotifier;
 import com.cqu.vo.AlarmLogVO;
 import com.cqu.vo.AlarmStatisticsVO;
@@ -39,6 +44,9 @@ public class AlarmLogsServiceImpl extends ServiceImpl<AlarmLogsMapper, AlarmLogs
     private DevicesMapper devicesMapper;
 
     @Autowired
+    private UserDeviceMapper userDeviceMapper;
+
+    @Autowired
     private IControlLogsService controlLogsService;
 
     @Autowired
@@ -52,6 +60,12 @@ public class AlarmLogsServiceImpl extends ServiceImpl<AlarmLogsMapper, AlarmLogs
         wrapper.eq(alarmType != null && !alarmType.isBlank(), AlarmLogs::getAlarmType, alarmType);
         wrapper.eq(alarmLevel != null && !alarmLevel.isBlank(), AlarmLogs::getAlarmLevel, alarmLevel);
         wrapper.eq(status != null && !status.isBlank(), AlarmLogs::getStatus, status);
+        // 消防员仅可查看火警
+        if (Role.FIREFIGHTER.name().equals(UserHolder.getRole())) {
+            wrapper.eq(AlarmLogs::getAlarmLevel, AlarmLevel.FIRE.name());
+        }
+        // 数据权限：居民/小区管理员只看本小区
+        applyCommunityScope(wrapper);
         wrapper.orderByDesc(AlarmLogs::getCreatedAt);
 
         Page<AlarmLogs> pageResult = this.page(new Page<>(page, pageSize), wrapper);
@@ -187,7 +201,30 @@ public class AlarmLogsServiceImpl extends ServiceImpl<AlarmLogsMapper, AlarmLogs
         String deviceName = null;
         Devices device = devicesMapper.selectById(deviceId);
         if (device != null) deviceName = device.getDeviceName();
-        webSocketNotifier.pushAlarm(toVO(alarm, deviceName));
+        routeAlarm(alarm, device, toVO(alarm, deviceName));
+    }
+
+    private void routeAlarm(AlarmLogs alarm, Devices device, AlarmLogVO vo) {
+        String alarmType = alarm.getAlarmType();
+        boolean fire = AlarmType.SMOKE_HIGH.name().equals(alarmType)
+                || AlarmType.TEMP_HIGH.name().equals(alarmType)
+                || AlarmType.CO_HIGH.name().equals(alarmType);
+
+        if (fire) {
+            webSocketNotifier.pushFireAlarm(vo);
+        }
+        if (device != null && device.getCommunityId() != null) {
+            webSocketNotifier.pushCommunityAlarm(device.getCommunityId(), vo);
+            // 绑定设备重点提示：火警/低电量定向推送给绑定住户
+            if (fire || AlarmType.LOW_BATTERY.name().equals(alarmType)) {
+                List<Long> boundUserIds = userDeviceMapper.selectList(
+                        new LambdaQueryWrapper<UserDevice>().eq(UserDevice::getDeviceId, device.getId()))
+                        .stream().map(UserDevice::getUserId).collect(Collectors.toList());
+                for (Long userId : boundUserIds) {
+                    webSocketNotifier.pushUserAlert(userId, vo);
+                }
+            }
+        }
     }
 
     @Override
@@ -214,6 +251,21 @@ public class AlarmLogsServiceImpl extends ServiceImpl<AlarmLogsMapper, AlarmLogs
         if (AlarmType.LOW_BATTERY.name().equals(alarmType)) return AlarmLevel.LOW_BATTERY.name();
         if (AlarmType.SENSOR_FAULT.name().equals(alarmType)) return AlarmLevel.FAULT.name();
         return AlarmLevel.WARN.name();
+    }
+
+    private void applyCommunityScope(LambdaQueryWrapper<AlarmLogs> wrapper) {
+        DataScope.Scope scope = DataScope.resolve();
+        if (scope.all() || scope.communityId() == null) {
+            return;
+        }
+        List<Long> deviceIds = devicesMapper.selectList(
+                new LambdaQueryWrapper<Devices>().eq(Devices::getCommunityId, scope.communityId()))
+                .stream().map(Devices::getId).collect(Collectors.toList());
+        if (deviceIds.isEmpty()) {
+            wrapper.eq(AlarmLogs::getDeviceId, 0L);
+        } else {
+            wrapper.in(AlarmLogs::getDeviceId, deviceIds);
+        }
     }
 
     private Map<Long, String> buildDeviceNameMap(List<AlarmLogs> alarms) {

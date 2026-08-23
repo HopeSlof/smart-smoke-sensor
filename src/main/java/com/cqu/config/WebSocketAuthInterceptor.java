@@ -41,7 +41,15 @@ public class WebSocketAuthInterceptor implements HandshakeInterceptor {
             Claims claims = jwtProperties.parseJWT(token);
             Object userIdValue = claims.get("userId");
             if (userIdValue instanceof Number userIdNumber) {
+                String role = claims.get("role", String.class);
+                Long communityId = null;
+                Object communityIdValue = claims.get("communityId");
+                if (communityIdValue instanceof Number communityIdNumber) {
+                    communityId = communityIdNumber.longValue();
+                }
                 attributes.put("userId", userIdNumber.longValue());
+                attributes.put("role", role);
+                attributes.put("communityId", communityId);
                 return true;
             }
         } catch (Exception e) {
