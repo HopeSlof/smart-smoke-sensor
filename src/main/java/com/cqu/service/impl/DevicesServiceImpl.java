@@ -13,9 +13,11 @@ import com.cqu.common.exception.ErrorCode;
 import com.cqu.entity.AlarmLogs;
 import com.cqu.entity.Devices;
 import com.cqu.entity.SmokeReadings;
+import com.cqu.entity.UserDevice;
 import com.cqu.mapper.AlarmLogsMapper;
 import com.cqu.mapper.DevicesMapper;
 import com.cqu.mapper.SmokeReadingsMapper;
+import com.cqu.mapper.UserDeviceMapper;
 import com.cqu.service.IAlarmLogsService;
 import com.cqu.service.IControlLogsService;
 import com.cqu.service.IDevicesService;
@@ -53,6 +55,9 @@ public class DevicesServiceImpl extends ServiceImpl<DevicesMapper, Devices> impl
     private AlarmLogsMapper alarmLogsMapper;
 
     @Autowired
+    private UserDeviceMapper userDeviceMapper;
+
+    @Autowired
     private IControlLogsService controlLogsService;
 
     @Autowired
@@ -84,6 +89,7 @@ public class DevicesServiceImpl extends ServiceImpl<DevicesMapper, Devices> impl
         if (device == null) {
             throw new BusinessException("设备不存在");
         }
+        checkCommunityAccess(device);
 
         LambdaQueryWrapper<SmokeReadings> smokeWrapper = new LambdaQueryWrapper<>();
         smokeWrapper.eq(SmokeReadings::getDeviceId, id)
@@ -129,9 +135,15 @@ public class DevicesServiceImpl extends ServiceImpl<DevicesMapper, Devices> impl
         device.setDeviceSn(request.getDeviceSn());
         device.setDeviceType(request.getDeviceType() != null && !request.getDeviceType().isBlank()
                 ? request.getDeviceType() : DeviceType.SMOKE_SENSOR.name());
-        device.setCommunityId(request.getCommunityId());
+        // 小区管理员只能把设备加到本小区
+        if (Role.COMMUNITY_ADMIN.name().equals(UserHolder.getRole())) {
+            device.setCommunityId(UserHolder.getCommunityId());
+        } else {
+            device.setCommunityId(request.getCommunityId());
+        }
         device.setLocation(request.getLocation());
         this.save(device);
+        log.info("新增设备: deviceSn={}, communityId={}, operatorId={}", request.getDeviceSn(), device.getCommunityId(), UserHolder.getUserId());
 
         controlLogsService.recordLog(device.getId(), "ADD_DEVICE", "SUCCESS", "MANUAL");
     }
@@ -142,6 +154,7 @@ public class DevicesServiceImpl extends ServiceImpl<DevicesMapper, Devices> impl
         if (device == null) {
             throw new BusinessException("设备不存在");
         }
+        checkCommunityAccess(device);
         if (request.getDeviceName() != null && !request.getDeviceName().isBlank()) {
             device.setDeviceName(request.getDeviceName());
         }
@@ -152,6 +165,10 @@ public class DevicesServiceImpl extends ServiceImpl<DevicesMapper, Devices> impl
             device.setLocation(request.getLocation());
         }
         if (request.getCommunityId() != null) {
+            // 小区管理员不能修改设备所属小区
+            if (Role.COMMUNITY_ADMIN.name().equals(UserHolder.getRole())) {
+                throw new BusinessException(ErrorCode.FORBIDDEN, "小区管理员不能修改设备所属小区");
+            }
             device.setCommunityId(request.getCommunityId());
         }
         this.updateById(device);
@@ -165,20 +182,56 @@ public class DevicesServiceImpl extends ServiceImpl<DevicesMapper, Devices> impl
         if (device == null) {
             throw new BusinessException("设备不存在");
         }
+        checkCommunityAccess(device);
         smokeReadingsMapper.delete(new LambdaQueryWrapper<SmokeReadings>().eq(SmokeReadings::getDeviceId, id));
         alarmLogsMapper.delete(new LambdaQueryWrapper<AlarmLogs>().eq(AlarmLogs::getDeviceId, id));
+        userDeviceMapper.delete(new LambdaQueryWrapper<UserDevice>().eq(UserDevice::getDeviceId, id));
         this.removeById(id);
+        log.info("删除设备: id={}, operatorId={}", id, UserHolder.getUserId());
 
         controlLogsService.recordLog(id, "DELETE_DEVICE", "SUCCESS", "MANUAL");
     }
 
+    /** 居民/小区管理员只能访问本小区设备 */
+    private void checkCommunityAccess(Devices device) {
+        String role = UserHolder.getRole();
+        if (Role.RESIDENT.name().equals(role) || Role.COMMUNITY_ADMIN.name().equals(role)) {
+            Long currentCommunityId = UserHolder.getCommunityId();
+            if (currentCommunityId == null || !currentCommunityId.equals(device.getCommunityId())) {
+                throw new BusinessException(ErrorCode.FORBIDDEN, "无权访问其他小区设备");
+            }
+        }
+    }
+
     @Override
     public DeviceStatisticsVO getStatistics() {
-        long total = this.count();
-        long online = this.lambdaQuery().eq(Devices::getOnlineStatus, OnlineStatus.ONLINE.name()).count();
-        long offline = this.lambdaQuery().eq(Devices::getOnlineStatus, OnlineStatus.OFFLINE.name()).count();
-        long activeAlarm = alarmLogsMapper.selectCount(
-                new LambdaQueryWrapper<AlarmLogs>().eq(AlarmLogs::getStatus, "ACTIVE"));
+        LambdaQueryWrapper<Devices> totalWrapper = new LambdaQueryWrapper<>();
+        applyCommunityScope(totalWrapper);
+        long total = this.count(totalWrapper);
+
+        LambdaQueryWrapper<Devices> onlineWrapper = new LambdaQueryWrapper<>();
+        onlineWrapper.eq(Devices::getOnlineStatus, OnlineStatus.ONLINE.name());
+        applyCommunityScope(onlineWrapper);
+        long online = this.count(onlineWrapper);
+
+        LambdaQueryWrapper<Devices> offlineWrapper = new LambdaQueryWrapper<>();
+        offlineWrapper.eq(Devices::getOnlineStatus, OnlineStatus.OFFLINE.name());
+        applyCommunityScope(offlineWrapper);
+        long offline = this.count(offlineWrapper);
+
+        // 活跃告警数按设备社区过滤
+        long activeAlarm;
+        String role = UserHolder.getRole();
+        if (Role.RESIDENT.name().equals(role) || Role.COMMUNITY_ADMIN.name().equals(role)) {
+            Long communityId = UserHolder.getCommunityId();
+            List<Long> deviceIds = devicesMapper.selectList(
+                    new LambdaQueryWrapper<Devices>().eq(Devices::getCommunityId, communityId))
+                    .stream().map(Devices::getId).collect(Collectors.toList());
+            activeAlarm = deviceIds.isEmpty() ? 0L : alarmLogsMapper.selectCount(
+                    new LambdaQueryWrapper<AlarmLogs>().eq(AlarmLogs::getStatus, "ACTIVE").in(AlarmLogs::getDeviceId, deviceIds));
+        } else {
+            activeAlarm = alarmLogsMapper.selectCount(new LambdaQueryWrapper<AlarmLogs>().eq(AlarmLogs::getStatus, "ACTIVE"));
+        }
 
         return DeviceStatisticsVO.builder()
                 .totalCount(String.valueOf(total))

@@ -5,11 +5,10 @@ import com.cqu.entity.SmokeReadings;
 import com.cqu.vo.LatestSmokeVO;
 import com.cqu.vo.PageResult;
 import com.cqu.vo.SmokeReadingsVO;
-import com.cqu.vo.TrendPointVO;
+import com.cqu.vo.TrendVO;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.List;
 
 /**
  * 烟雾浓度数据服务
@@ -21,7 +20,7 @@ public interface ISmokeReadingsService extends IService<SmokeReadings> {
 
     LatestSmokeVO getLatest(Long deviceId);
 
-    List<TrendPointVO> getTrend(Long deviceId, LocalDateTime startTime, LocalDateTime endTime);
+    TrendVO getTrend(Long deviceId, LocalDateTime startTime, LocalDateTime endTime);
 
     /**
      * 烟雾数据上报（MQTT 事件 / HTTP 降级通道共用入口）

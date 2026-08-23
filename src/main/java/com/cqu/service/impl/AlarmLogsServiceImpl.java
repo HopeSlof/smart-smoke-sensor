@@ -84,10 +84,30 @@ public class AlarmLogsServiceImpl extends ServiceImpl<AlarmLogsMapper, AlarmLogs
         if (alarm == null) {
             throw new BusinessException("告警记录不存在");
         }
+        checkAlarmAccess(alarm);
         String deviceName = null;
         Devices device = devicesMapper.selectById(alarm.getDeviceId());
         if (device != null) deviceName = device.getDeviceName();
         return toVO(alarm, deviceName);
+    }
+
+    private void checkAlarmAccess(AlarmLogs alarm) {
+        // 消防员仅可查看火警
+        if (Role.FIREFIGHTER.name().equals(UserHolder.getRole())) {
+            if (!AlarmLevel.FIRE.name().equals(alarm.getAlarmLevel())) {
+                throw new BusinessException(ErrorCode.FORBIDDEN, "消防员仅可查看火警");
+            }
+            return;
+        }
+        // 居民/小区管理员只能查看本小区设备的告警
+        String role = UserHolder.getRole();
+        if (Role.RESIDENT.name().equals(role) || Role.COMMUNITY_ADMIN.name().equals(role)) {
+            Long currentCommunityId = UserHolder.getCommunityId();
+            Devices device = devicesMapper.selectById(alarm.getDeviceId());
+            if (device == null || currentCommunityId == null || !currentCommunityId.equals(device.getCommunityId())) {
+                throw new BusinessException(ErrorCode.FORBIDDEN, "无权查看其他小区告警");
+            }
+        }
     }
 
     @Override
@@ -99,6 +119,7 @@ public class AlarmLogsServiceImpl extends ServiceImpl<AlarmLogsMapper, AlarmLogs
         if (!AlarmStatus.ACTIVE.name().equals(alarm.getStatus())) {
             throw new BusinessException("该告警已被处理");
         }
+        checkFirefighterFireOnly(alarm);
         alarm.setStatus(AlarmStatus.RESOLVED.name());
         alarm.setResolvedAt(LocalDateTime.now());
         this.updateById(alarm);
@@ -129,6 +150,7 @@ public class AlarmLogsServiceImpl extends ServiceImpl<AlarmLogsMapper, AlarmLogs
         } catch (Exception e) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "处置结论非法，应为 CONFIRMED_FIRE 或 FALSE_ALARM");
         }
+        checkFirefighterFireOnly(alarm);
 
         alarm.setDisposition(disposition);
         if (alarm.getAcknowledgedAt() == null) {
@@ -140,18 +162,33 @@ public class AlarmLogsServiceImpl extends ServiceImpl<AlarmLogsMapper, AlarmLogs
         controlLogsService.recordLog(alarm.getDeviceId(), command, "SUCCESS", "MANUAL");
     }
 
+    private void checkFirefighterFireOnly(AlarmLogs alarm) {
+        if (Role.FIREFIGHTER.name().equals(UserHolder.getRole())
+                && !AlarmLevel.FIRE.name().equals(alarm.getAlarmLevel())) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "消防员仅可处置火警");
+        }
+    }
+
     @Override
     public AlarmStatisticsVO getStatistics() {
-        long activeCount = this.lambdaQuery().eq(AlarmLogs::getStatus, AlarmStatus.ACTIVE.name()).count();
-        long fireCount = this.lambdaQuery()
-                .eq(AlarmLogs::getStatus, AlarmStatus.ACTIVE.name())
-                .eq(AlarmLogs::getAlarmLevel, AlarmLevel.FIRE.name()).count();
-        long warnCount = this.lambdaQuery()
-                .eq(AlarmLogs::getStatus, AlarmStatus.ACTIVE.name())
-                .eq(AlarmLogs::getAlarmLevel, AlarmLevel.WARN.name()).count();
+        LambdaQueryWrapper<AlarmLogs> activeWrapper = new LambdaQueryWrapper<AlarmLogs>()
+                .eq(AlarmLogs::getStatus, AlarmStatus.ACTIVE.name());
+        applyCommunityScope(activeWrapper);
+        long activeCount = this.count(activeWrapper);
 
-        List<AlarmLogs> activeAlarms = this.lambdaQuery()
-                .eq(AlarmLogs::getStatus, AlarmStatus.ACTIVE.name()).list();
+        LambdaQueryWrapper<AlarmLogs> fireWrapper = new LambdaQueryWrapper<AlarmLogs>()
+                .eq(AlarmLogs::getStatus, AlarmStatus.ACTIVE.name())
+                .eq(AlarmLogs::getAlarmLevel, AlarmLevel.FIRE.name());
+        applyCommunityScope(fireWrapper);
+        long fireCount = this.count(fireWrapper);
+
+        LambdaQueryWrapper<AlarmLogs> warnWrapper = new LambdaQueryWrapper<AlarmLogs>()
+                .eq(AlarmLogs::getStatus, AlarmStatus.ACTIVE.name())
+                .eq(AlarmLogs::getAlarmLevel, AlarmLevel.WARN.name());
+        applyCommunityScope(warnWrapper);
+        long warnCount = this.count(warnWrapper);
+
+        List<AlarmLogs> activeAlarms = this.list(activeWrapper);
 
         List<AlarmStatisticsVO.AlarmTypeCount> byType = activeAlarms.stream()
                 .collect(Collectors.groupingBy(AlarmLogs::getAlarmType, Collectors.counting()))
@@ -197,6 +234,7 @@ public class AlarmLogsServiceImpl extends ServiceImpl<AlarmLogsMapper, AlarmLogs
         alarm.setStatus(AlarmStatus.ACTIVE.name());
         alarm.setEscalated(false);
         this.save(alarm);
+        log.info("创建告警: deviceId={}, type={}, level={}", deviceId, alarmType, resolvedLevel);
 
         String deviceName = null;
         Devices device = devicesMapper.selectById(deviceId);

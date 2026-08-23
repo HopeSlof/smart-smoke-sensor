@@ -2,12 +2,17 @@ package com.cqu.service.impl;
 
 import cn.hutool.crypto.digest.BCrypt;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cqu.common.enums.Role;
 import com.cqu.common.exception.BusinessException;
 import com.cqu.common.exception.ErrorCode;
+import com.cqu.entity.Community;
+import com.cqu.entity.UserDevice;
 import com.cqu.entity.Users;
+import com.cqu.mapper.CommunityMapper;
+import com.cqu.mapper.UserDeviceMapper;
 import com.cqu.mapper.UsersMapper;
 import com.cqu.service.IUsersService;
 import com.cqu.utils.JwtProperties;
@@ -19,6 +24,7 @@ import com.cqu.vo.RegisterRequest;
 import com.cqu.vo.UserCreateRequest;
 import com.cqu.vo.UserUpdateRequest;
 import com.cqu.vo.UserVO;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -30,11 +36,18 @@ import java.util.stream.Collectors;
 /**
  * 用户服务实现
  */
+@Slf4j
 @Service
 public class UsersServiceImpl extends ServiceImpl<UsersMapper, Users> implements IUsersService {
 
     @Autowired
     private JwtProperties jwtProperties;
+
+    @Autowired
+    private CommunityMapper communityMapper;
+
+    @Autowired
+    private UserDeviceMapper userDeviceMapper;
 
     @Override
     public LoginVO register(RegisterRequest request) {
@@ -62,8 +75,14 @@ public class UsersServiceImpl extends ServiceImpl<UsersMapper, Users> implements
         user.setRealName(request.getRealName());
         user.setPhone(request.getPhone());
         this.save(user);
+        log.info("用户注册: username={}, communityId={}", request.getUsername(), request.getCommunityId());
 
-        return buildLoginVO(user);
+        // 待审核用户不发放 token，审核通过后登录
+        return LoginVO.builder()
+                .userId(String.valueOf(user.getId()))
+                .username(user.getUsername())
+                .role(user.getRole())
+                .build();
     }
 
     @Override
@@ -78,6 +97,7 @@ public class UsersServiceImpl extends ServiceImpl<UsersMapper, Users> implements
         if ("DISABLED".equals(user.getStatus())) {
             throw new BusinessException("账号已被禁用");
         }
+        log.info("用户登录: username={}, userId={}", request.getUsername(), user.getId());
         return buildLoginVO(user);
     }
 
@@ -88,7 +108,12 @@ public class UsersServiceImpl extends ServiceImpl<UsersMapper, Users> implements
         wrapper.eq(status != null && !status.isBlank(), Users::getStatus, status);
         // 数据权限：小区管理员只能看本小区用户
         if (Role.COMMUNITY_ADMIN.name().equals(UserHolder.getRole())) {
-            wrapper.eq(Users::getCommunityId, UserHolder.getCommunityId());
+            Long currentCommunityId = UserHolder.getCommunityId();
+            if (currentCommunityId == null) {
+                wrapper.eq(Users::getId, 0L); // 小区管理员未绑定小区，看不到住户
+            } else {
+                wrapper.eq(Users::getCommunityId, currentCommunityId);
+            }
         } else if (communityId != null) {
             wrapper.eq(Users::getCommunityId, communityId);
         }
@@ -119,6 +144,10 @@ public class UsersServiceImpl extends ServiceImpl<UsersMapper, Users> implements
         if (Role.SYSTEM_ADMIN == role) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "不能创建系统管理员");
         }
+        // 小区管理员只能创建居民
+        if (Role.COMMUNITY_ADMIN.name().equals(UserHolder.getRole()) && role != Role.RESIDENT) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "小区管理员只能创建居民");
+        }
         if (this.lambdaQuery().eq(Users::getUsername, request.getUsername()).count() > 0) {
             throw new BusinessException("用户名已存在");
         }
@@ -127,9 +156,11 @@ public class UsersServiceImpl extends ServiceImpl<UsersMapper, Users> implements
         user.setUsername(request.getUsername());
         user.setPassword(BCrypt.hashpw(request.getPassword()));
         user.setRole(role.name());
-        // 小区管理员只能在本小区创建用户
+        // 小区管理员只能在本小区创建用户；消防员不归属小区
         if (Role.COMMUNITY_ADMIN.name().equals(UserHolder.getRole())) {
             user.setCommunityId(UserHolder.getCommunityId());
+        } else if (role == Role.FIREFIGHTER) {
+            user.setCommunityId(null);
         } else {
             user.setCommunityId(request.getCommunityId());
         }
@@ -140,6 +171,7 @@ public class UsersServiceImpl extends ServiceImpl<UsersMapper, Users> implements
         user.setRealName(request.getRealName());
         user.setPhone(request.getPhone());
         this.save(user);
+        log.info("创建用户: username={}, role={}, operatorId={}", request.getUsername(), role.name(), UserHolder.getUserId());
     }
 
     @Override
@@ -160,9 +192,21 @@ public class UsersServiceImpl extends ServiceImpl<UsersMapper, Users> implements
             if (Role.SYSTEM_ADMIN == role) {
                 throw new BusinessException(ErrorCode.BAD_REQUEST, "不能设置为系统管理员");
             }
+            // 小区管理员不能设置管理员或消防员角色
+            if (Role.COMMUNITY_ADMIN.name().equals(UserHolder.getRole()) && role != Role.RESIDENT) {
+                throw new BusinessException(ErrorCode.FORBIDDEN, "小区管理员不能设置管理员或消防员角色");
+            }
             user.setRole(role.name());
+            // 消防员不归属小区
+            if (role == Role.FIREFIGHTER) {
+                user.setCommunityId(null);
+            }
         }
         if (request.getCommunityId() != null) {
+            // 小区管理员不能修改用户所属小区
+            if (Role.COMMUNITY_ADMIN.name().equals(UserHolder.getRole())) {
+                throw new BusinessException(ErrorCode.FORBIDDEN, "小区管理员不能修改用户所属小区");
+            }
             user.setCommunityId(request.getCommunityId());
         }
         if (request.getRealName() != null) {
@@ -172,6 +216,7 @@ public class UsersServiceImpl extends ServiceImpl<UsersMapper, Users> implements
             user.setPhone(request.getPhone());
         }
         this.updateById(user);
+        log.info("修改用户: id={}, operatorId={}", id, UserHolder.getUserId());
     }
 
     @Override
@@ -186,6 +231,7 @@ public class UsersServiceImpl extends ServiceImpl<UsersMapper, Users> implements
         }
         user.setStatus(status);
         this.updateById(user);
+        log.info("用户状态变更: id={}, status={}, operatorId={}", id, status, UserHolder.getUserId());
     }
 
     @Override
@@ -200,6 +246,7 @@ public class UsersServiceImpl extends ServiceImpl<UsersMapper, Users> implements
         }
         user.setPassword(BCrypt.hashpw(password));
         this.updateById(user);
+        log.info("重置密码: userId={}, operatorId={}", id, UserHolder.getUserId());
     }
 
     @Override
@@ -214,6 +261,7 @@ public class UsersServiceImpl extends ServiceImpl<UsersMapper, Users> implements
         }
         user.setStatus(approve ? "ACTIVE" : "DISABLED");
         this.updateById(user);
+        log.info("审核用户: id={}, approve={}, operatorId={}", id, approve, UserHolder.getUserId());
     }
 
     @Override
@@ -225,7 +273,14 @@ public class UsersServiceImpl extends ServiceImpl<UsersMapper, Users> implements
         if (Role.SYSTEM_ADMIN.name().equals(user.getRole())) {
             throw new BusinessException("不能删除系统管理员");
         }
+        // 清理绑定关系
+        userDeviceMapper.delete(new LambdaQueryWrapper<UserDevice>().eq(UserDevice::getUserId, id));
+        // 清除小区负责人引用
+        communityMapper.update(null, new LambdaUpdateWrapper<Community>()
+                .eq(Community::getAdminUserId, id)
+                .set(Community::getAdminUserId, null));
         this.removeById(id);
+        log.info("删除用户: id={}, username={}, operatorId={}", id, user.getUsername(), UserHolder.getUserId());
     }
 
     /** 小区管理员只能操作本小区用户 */

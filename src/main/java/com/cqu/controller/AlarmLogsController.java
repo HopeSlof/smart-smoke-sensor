@@ -50,7 +50,7 @@ public class AlarmLogsController {
         return Result.success(alarmLogsService.getAlarmDetail(id));
     }
 
-    @RequireRole({Role.SYSTEM_ADMIN, Role.COMMUNITY_ADMIN})
+    @RequireRole({Role.SYSTEM_ADMIN, Role.COMMUNITY_ADMIN, Role.FIREFIGHTER})
     @PutMapping("/{id}/resolve")
     public Result<String> resolve(@PathVariable Long id) {
         alarmLogsService.resolveAlarm(id);

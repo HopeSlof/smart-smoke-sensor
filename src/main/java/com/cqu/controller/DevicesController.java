@@ -73,7 +73,7 @@ public class DevicesController {
         return Result.success("修改成功");
     }
 
-    @RequireRole({Role.SYSTEM_ADMIN})
+    @RequireRole({Role.SYSTEM_ADMIN, Role.COMMUNITY_ADMIN})
     @DeleteMapping("/{id}")
     public Result<String> delete(@PathVariable Long id) {
         devicesService.deleteDevice(id);

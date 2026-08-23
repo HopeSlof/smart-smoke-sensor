@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cqu.common.enums.OnlineStatus;
+import com.cqu.common.enums.Role;
 import com.cqu.common.exception.BusinessException;
 import com.cqu.common.exception.ErrorCode;
 import com.cqu.entity.Devices;
@@ -13,11 +14,13 @@ import com.cqu.mapper.SmokeReadingsMapper;
 import com.cqu.service.IAlertRuleEngine;
 import com.cqu.service.ISmokeReadingsService;
 import com.cqu.utils.DataScope;
+import com.cqu.utils.UserHolder;
 import com.cqu.utils.WebSocketNotifier;
 import com.cqu.vo.LatestSmokeVO;
 import com.cqu.vo.PageResult;
 import com.cqu.vo.SmokeReadingsVO;
 import com.cqu.vo.TrendPointVO;
+import com.cqu.vo.TrendVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -69,6 +72,7 @@ public class SmokeReadingsServiceImpl extends ServiceImpl<SmokeReadingsMapper, S
 
     @Override
     public LatestSmokeVO getLatest(Long deviceId) {
+        checkDeviceAccess(deviceId);
         LambdaQueryWrapper<SmokeReadings> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(SmokeReadings::getDeviceId, deviceId)
                 .orderByDesc(SmokeReadings::getCreatedAt)
@@ -81,19 +85,40 @@ public class SmokeReadingsServiceImpl extends ServiceImpl<SmokeReadingsMapper, S
     }
 
     @Override
-    public List<TrendPointVO> getTrend(Long deviceId, LocalDateTime startTime, LocalDateTime endTime) {
+    public TrendVO getTrend(Long deviceId, LocalDateTime startTime, LocalDateTime endTime) {
+        checkDeviceAccess(deviceId);
         LambdaQueryWrapper<SmokeReadings> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(SmokeReadings::getDeviceId, deviceId)
                 .ge(startTime != null, SmokeReadings::getCreatedAt, startTime)
                 .le(endTime != null, SmokeReadings::getCreatedAt, endTime)
                 .orderByAsc(SmokeReadings::getCreatedAt);
 
-        return this.list(wrapper).stream()
+        List<SmokeReadings> readings = this.list(wrapper);
+
+        List<TrendPointVO> smoke = readings.stream()
                 .map(r -> TrendPointVO.builder()
                         .time(String.valueOf(r.getCreatedAt()))
-                        .value(String.valueOf(r.getSmokeConcentration()))
+                        .value(r.getSmokeConcentration() != null ? String.valueOf(r.getSmokeConcentration()) : null)
                         .build())
                 .collect(Collectors.toList());
+        List<TrendPointVO> temperature = readings.stream()
+                .map(r -> TrendPointVO.builder()
+                        .time(String.valueOf(r.getCreatedAt()))
+                        .value(r.getTemperature() != null ? String.valueOf(r.getTemperature()) : null)
+                        .build())
+                .collect(Collectors.toList());
+        List<TrendPointVO> co = readings.stream()
+                .map(r -> TrendPointVO.builder()
+                        .time(String.valueOf(r.getCreatedAt()))
+                        .value(r.getCoConcentration() != null ? String.valueOf(r.getCoConcentration()) : null)
+                        .build())
+                .collect(Collectors.toList());
+
+        return TrendVO.builder()
+                .smoke(smoke)
+                .temperature(temperature)
+                .co(co)
+                .build();
     }
 
     @Override
@@ -153,6 +178,18 @@ public class SmokeReadingsServiceImpl extends ServiceImpl<SmokeReadingsMapper, S
             wrapper.eq(SmokeReadings::getDeviceId, 0L);
         } else {
             wrapper.in(SmokeReadings::getDeviceId, deviceIds);
+        }
+    }
+
+    /** 居民/小区管理员只能访问本小区设备的数据 */
+    private void checkDeviceAccess(Long deviceId) {
+        String role = UserHolder.getRole();
+        if (Role.RESIDENT.name().equals(role) || Role.COMMUNITY_ADMIN.name().equals(role)) {
+            Long currentCommunityId = UserHolder.getCommunityId();
+            Devices device = devicesMapper.selectById(deviceId);
+            if (device == null || currentCommunityId == null || !currentCommunityId.equals(device.getCommunityId())) {
+                throw new BusinessException(ErrorCode.FORBIDDEN, "无权访问其他小区设备数据");
+            }
         }
     }
 

@@ -1,236 +1,313 @@
 # 智慧烟感管理平台 — API 接口文档
 
-> 本文档由后端代码梳理生成，供前端对接使用。
+> 本文档由后端代码梳理生成，供前端对接使用。版本：负责人机制（多小区 + 角色 + 数据权限）落地后。
 
 ## 通用约定
 
 |项目|说明|
 |-|-|
 |**基础路径**|`http://localhost:8080`|
-|**认证方式**|除注册/登录及 3 个硬件上报接口外，所有请求 Header 需携带 `token`（JWT，15 小时有效）|
+|**认证方式**|除注册/登录及 3 个硬件上报接口外，所有请求 Header 需携带 `token`（JWT，15 小时有效）。每个请求会实时校验账号状态，**禁用/待审核立即失效（403）**，角色/小区变更即时生效。|
 |**统一响应格式**|`{"code": 200, "errorMsg": null, "data": ...}`，成功 `code=200`，失败 `code=4xx/500`|
-|**分页格式**|请求 `page`（从 1 开始，默认 1）、`pageSize`（默认 10）；返回 `{"total": "100", "records": \[...]}`|
-|**时间格式**|ISO 8601，如 `2026-08-22T16:44:41.454783`|
+|**分页格式**|请求 `page`（从 1 开始，默认 1）、`pageSize`（默认 10）；返回 `{"total": "100", "records": [...]}`|
 |**ID 类型**|所有 `id`、`deviceId` 等标识字段返回为字符串（避免前端大数精度丢失）|
 
 ### 无需 token 的接口
 
-* `POST /users/register`、`POST /users/login`
-* 硬件通道（HTTP 降级）：`POST /devices/heartbeat`、`POST /devices/self-check`、`POST /smoke-readings/report`
+- `POST /users/register`、`POST /users/login`
+- 硬件通道（HTTP 降级）：`POST /devices/heartbeat`、`POST /devices/self-check`、`POST /smoke-readings/report`
 
-### 角色枚举（role）
+### 角色与权限总览
 
-|值|含义|
-|-|-|
-|`RESIDENT`|居民|
-|`COMMUNITY\_ADMIN`|小区管理员|
-|`SYSTEM\_ADMIN`|系统管理员|
-|`FIREFIGHTER`|消防员|
+|角色|枚举值|数据范围|说明|
+|-|-|-|-|
+|居民|`RESIDENT`|本小区只读|查看本小区设备/告警，绑定设备告警重点提示|
+|小区管理员|`COMMUNITY_ADMIN`|本小区管理|本小区设备/用户/告警管理|
+|消防员|`FIREFIGHTER`|跨小区仅火警|只看火警，可解决/确认火警|
+|系统管理员|`SYSTEM_ADMIN`|全量|所有小区、用户、设备、阈值、RAG|
 
-\---
+> 数据权限规则：居民/小区管理员只能看本小区数据；消防员只能看火警；系统管理员看全部。
 
-## 1\. 用户模块 — `/users`
+---
+
+## 1. 用户模块 — `/users`
 
 ### 1.1 用户注册
 
-* **URL**：`POST /users/register`
-* **认证**：不需要
-* **请求体**：
+- **URL**：`POST /users/register`
+- **认证**：不需要
+- **说明**：注册**强制为居民（RESIDENT）**，忽略前端传入的 `role`；注册后为**待审核（PENDING）**，需管理员审核通过后才能登录；**注册不返回 token**。
 
 |字段|类型|必填|说明|
 |-|-|-|-|
 |username|string|是|用户名，不可重复|
 |password|string|是|密码（BCrypt 加密存储）|
-|role|string|否|角色，默认 `RESIDENT`|
-|communityId|long|否|归属小区|
+|communityId|long|是|归属小区|
+|realName|string|否|真实姓名（审核用）|
+|phone|string|否|联系电话（审核用）|
 
 ```json
-{"username": "admin", "password": "123456", "role": "SYSTEM\_ADMIN", "communityId": 1}
+{"username": "zhangsan", "password": "123456", "communityId": 2091425987927519234, "realName": "张三", "phone": "13800000000"}
 ```
 
-* **返回** `LoginVO`：
-
-|字段|类型|说明|
-|-|-|-|
-|token|string|JWT 令牌|
-|userId|string|用户 ID|
-|username|string|用户名|
-|role|string|角色|
+- **返回** `LoginVO`：`token` 为 `null`，仅返回 `userId`、`username`、`role`。
 
 ### 1.2 用户登录
 
-* **URL**：`POST /users/login`
-* **认证**：不需要
-* **请求体**：
+- **URL**：`POST /users/login`
+- **认证**：不需要
 
 ```json
 {"username": "admin", "password": "123456"}
 ```
 
-* **返回**：`LoginVO`（同上）
+- **返回** `LoginVO`：
 
-\---
+|字段|类型|说明|
+|-|-|-|
+|token|string|JWT 令牌（登录成功才有）|
+|userId|string|用户 ID|
+|username|string|用户名|
+|role|string|角色|
 
-## 2\. 设备管理 — `/devices`
+- **失败**：待审核返回「账号待审核」，禁用返回「账号已被禁用」。
 
-> 数据权限：`RESIDENT`、`COMMUNITY\_ADMIN` 只能看到本 `communityId` 的设备；`SYSTEM\_ADMIN`、`FIREFIGHTER` 可见全部。
+### 1.3 用户分页列表
 
-### 2.1 设备分页列表
-
-* **URL**：`GET /devices`
-* **请求参数**：
+- **URL**：`GET /users`
+- **角色**：`SYSTEM_ADMIN` / `COMMUNITY_ADMIN`（小区管理员只看本小区用户）
 
 |参数|类型|必填|说明|
 |-|-|-|-|
-|page|int|否|默认 1|
-|pageSize|int|否|默认 10|
-|deviceName|string|否|名称模糊搜索|
-|deviceType|string|否|类型，见附录|
-|onlineStatus|string|否|`ONLINE` / `OFFLINE`|
+|page / pageSize|int|否|分页|
+|role|string|否|按角色筛选|
+|communityId|long|否|按小区筛选|
+|status|string|否|`PENDING` / `ACTIVE` / `DISABLED`|
 
-* **返回**：`PageResult<DeviceVO>`
+- **返回** `PageResult<UserVO>`：
 
 |字段|类型|说明|
 |-|-|-|
-|id|string|设备 ID|
-|deviceName|string|设备名称|
-|deviceSn|string|设备序列号（硬件标识）|
-|deviceType|string|设备类型|
+|id|string|用户 ID|
+|username|string|用户名|
+|role|string|角色|
 |communityId|long|归属小区|
-|location|string|安装位置|
-|onlineStatus|string|在线状态|
-|batteryLevel|int|电量百分比（可空）|
-|lastHeartbeatTime|string|最近心跳时间|
+|status|string|账号状态|
+|realName|string|真实姓名|
+|phone|string|联系电话|
 |createdAt|string|创建时间|
 
-### 2.2 设备概览统计
+### 1.4 管理员创建用户
 
-* **URL**：`GET /devices/statistics`
-* **返回** `DeviceStatisticsVO`：
+- **URL**：`POST /users`
+- **角色**：`SYSTEM_ADMIN` / `COMMUNITY_ADMIN`（小区管理员只能创建居民、只能在本小区创建）
+
+|字段|类型|必填|说明|
+|-|-|-|-|
+|username|string|是|用户名|
+|password|string|是|密码|
+|role|string|是|`RESIDENT` / `COMMUNITY_ADMIN` / `FIREFIGHTER`（不能为 SYSTEM_ADMIN）|
+|communityId|long|否|归属小区（居民/小区管理员必填；消防员忽略）|
+|realName|string|否|真实姓名|
+|phone|string|否|联系电话|
+
+- **返回**：`data = "创建成功"`
+
+### 1.5 编辑用户
+
+- **URL**：`PUT /users/{id}`
+- **角色**：`SYSTEM_ADMIN` / `COMMUNITY_ADMIN`（小区管理员不能改角色为管理员/消防员、不能改所属小区）
+
+|字段|类型|必填|说明|
+|-|-|-|-|
+|role|string|否|新角色|
+|communityId|long|否|新小区|
+|realName|string|否|真实姓名|
+|phone|string|否|联系电话|
+
+### 1.6 启停用户
+
+- **URL**：`PUT /users/{id}/status`
+- **角色**：`SYSTEM_ADMIN` / `COMMUNITY_ADMIN`
+- **请求体**：`{"status": "DISABLED"}`（`ACTIVE` / `DISABLED`）
+
+### 1.7 重置密码
+
+- **URL**：`PUT /users/{id}/password`
+- **角色**：`SYSTEM_ADMIN` / `COMMUNITY_ADMIN`
+- **请求体**：`{"password": "newpass"}`
+
+### 1.8 审核注册
+
+- **URL**：`PUT /users/{id}/audit`
+- **角色**：`SYSTEM_ADMIN` / `COMMUNITY_ADMIN`
+- **请求体**：`{"approve": true}`（`true` 通过→ACTIVE，`false` 拒绝→DISABLED）
+
+### 1.9 删除用户
+
+- **URL**：`DELETE /users/{id}`
+- **角色**：`SYSTEM_ADMIN`
+- **说明**：不能删除系统管理员；删除时自动清理其设备绑定与小区负责人引用。
+
+### 1.10 查询住户绑定设备
+
+- **URL**：`GET /users/{userId}/devices`
+- **角色**：`SYSTEM_ADMIN` / `COMMUNITY_ADMIN` / `RESIDENT`（居民只能查自己）
+- **返回**：`List<DeviceVO>`
+
+---
+
+## 2. 小区管理 — `/community`
+
+### 2.1 新增小区
+
+- **URL**：`POST /community`
+- **角色**：`SYSTEM_ADMIN`
+- **请求体** `CommunitySaveRequest`：
+
+|字段|类型|必填|说明|
+|-|-|-|-|
+|name|string|是|小区名称|
+|address|string|否|小区地址|
+|adminUserId|long|否|负责人（COMMUNITY_ADMIN 用户 ID）|
+
+### 2.2 小区列表
+
+- **URL**：`GET /community`
+- **角色**：`SYSTEM_ADMIN` / `COMMUNITY_ADMIN`（小区管理员只看本小区）
+- **参数**：`page` / `pageSize` / `name`（模糊）
+- **返回** `PageResult<CommunityVO>`：
 
 |字段|类型|说明|
 |-|-|-|
-|totalCount|string|设备总数|
-|onlineCount|string|在线数|
-|offlineCount|string|离线数|
-|activeAlarmCount|string|活跃告警数|
+|id|string|小区 ID|
+|name|string|名称|
+|address|string|地址|
+|adminUserId|string|负责人用户 ID（可空）|
+|adminUsername|string|负责人用户名|
+|createdAt|string|创建时间|
 
-### 2.3 设备详情
+### 2.3 小区详情
 
-* **URL**：`GET /devices/{id}`
-* **路径参数**：`id` 设备 ID
-* **返回** `DeviceDetailVO`（`DeviceVO` 全部字段 + 以下）：
+- **URL**：`GET /community/{id}`
+- **角色**：`SYSTEM_ADMIN` / `COMMUNITY_ADMIN`（小区管理员只能看本小区）
 
-|字段|类型|说明|
-|-|-|-|
-|latestSmokeConcentration|number|最新烟雾浓度|
-|activeAlarmCount|long|活跃告警数|
+### 2.4 修改小区
 
-### 2.4 添加设备
+- **URL**：`PUT /community/{id}`
+- **角色**：`SYSTEM_ADMIN`
+- **请求体**：同 2.1
 
-* **URL**：`POST /devices`
-* **角色**：`SYSTEM\_ADMIN` / `COMMUNITY\_ADMIN`
-* **请求体**：
+### 2.5 删除小区
+
+- **URL**：`DELETE /community/{id}`
+- **角色**：`SYSTEM_ADMIN`
+- **说明**：小区下存在用户或设备时拒绝删除。
+
+### 2.6 指定小区负责人
+
+- **URL**：`PUT /community/{id}/admin`
+- **角色**：`SYSTEM_ADMIN`
+- **请求体**：`{"adminUserId": 123}`（`adminUserId` 为空表示清除负责人；负责人必须为 COMMUNITY_ADMIN 角色）
+
+---
+
+## 3. 设备管理 — `/devices`
+
+> 数据权限：`RESIDENT`、`COMMUNITY_ADMIN` 只能看本小区设备；`SYSTEM_ADMIN` 看全部；消防员不可访问设备接口。
+
+### 3.1 设备分页列表
+
+- **URL**：`GET /devices`
+- **角色**：`SYSTEM_ADMIN` / `COMMUNITY_ADMIN` / `RESIDENT`
+
+|参数|类型|必填|说明|
+|-|-|-|-|
+|page / pageSize|int|否|分页|
+|deviceName|string|否|名称模糊|
+|deviceType|string|否|类型|
+|onlineStatus|string|否|`ONLINE` / `OFFLINE`|
+
+- **返回** `PageResult<DeviceVO>`：`id`、`deviceName`、`deviceSn`、`deviceType`、`communityId`、`location`、`onlineStatus`、`batteryLevel`、`lastHeartbeatTime`、`createdAt`
+
+### 3.2 设备概览统计
+
+- **URL**：`GET /devices/statistics`
+- **角色**：`SYSTEM_ADMIN` / `COMMUNITY_ADMIN`（小区管理员只统计本小区）
+- **返回** `DeviceStatisticsVO`：`totalCount`、`onlineCount`、`offlineCount`、`activeAlarmCount`
+
+### 3.3 设备详情
+
+- **URL**：`GET /devices/{id}`
+- **角色**：`SYSTEM_ADMIN` / `COMMUNITY_ADMIN` / `RESIDENT`
+- **返回** `DeviceDetailVO`（`DeviceVO` 字段 + `latestSmokeConcentration`、`activeAlarmCount`）
+
+### 3.4 添加设备
+
+- **URL**：`POST /devices`
+- **角色**：`SYSTEM_ADMIN` / `COMMUNITY_ADMIN`（小区管理员只能加到本小区，忽略前端传的 communityId）
 
 |字段|类型|必填|说明|
 |-|-|-|-|
 |deviceName|string|是|设备名称|
 |deviceSn|string|是|序列号（唯一）|
-|deviceType|string|否|默认 `SMOKE\_SENSOR`|
-|communityId|long|否|归属小区|
+|deviceType|string|否|默认 `SMOKE_SENSOR`|
+|communityId|long|否|归属小区（小区管理员忽略）|
 |location|string|否|安装位置|
 
-```json
-{"deviceName": "1栋1单元301烟感", "deviceSn": "SN001", "deviceType": "SMOKE\_SENSOR", "communityId": 1, "location": "1栋-1单元-301"}
-```
+### 3.5 编辑设备
 
-* **返回**：`data = "添加成功"`
+- **URL**：`PUT /devices/{id}`
+- **角色**：`SYSTEM_ADMIN` / `COMMUNITY_ADMIN`（小区管理员不能改设备所属小区）
 
-### 2.5 编辑设备
+### 3.6 删除设备
 
-* **URL**：`PUT /devices/{id}`
-* **角色**：`SYSTEM\_ADMIN` / `COMMUNITY\_ADMIN`
-* **请求体**：同 2.4（`deviceSn` 不可修改，忽略即可）
+- **URL**：`DELETE /devices/{id}`
+- **角色**：`SYSTEM_ADMIN` / `COMMUNITY_ADMIN`（小区管理员只能删本小区设备）
+- **说明**：同时删除该设备的烟雾记录、告警和住户绑定关系。
 
-### 2.6 删除设备
+### 3.7 绑定住户-设备
 
-* **URL**：`DELETE /devices/{id}`
-* **角色**：`SYSTEM\_ADMIN`
-* **返回**：`data = "删除成功"`（同时删除该设备的烟雾记录和告警）
+- **URL**：`PUT /devices/{deviceId}/bind`
+- **角色**：`SYSTEM_ADMIN` / `COMMUNITY_ADMIN`（小区管理员只能操作本小区）
+- **请求体**：`{"userId": 123}`（userId 必须是居民，且与设备同小区）
 
-### 2.7 硬件心跳上报（HTTP 降级通道）
+### 3.8 解绑住户-设备
 
-* **URL**：`POST /devices/heartbeat`
-* **认证**：不需要（硬件通道）
-* **请求体**：
+- **URL**：`PUT /devices/{deviceId}/unbind`
+- **角色**：`SYSTEM_ADMIN` / `COMMUNITY_ADMIN`
+- **请求体**：`{"userId": 123}`
 
-```json
-{"deviceSn": "SN001", "batteryLevel": 80}
-```
+### 3.9 硬件心跳上报（HTTP 降级通道）
 
-|字段|类型|必填|说明|
-|-|-|-|-|
-|deviceSn|string|是|设备序列号|
-|batteryLevel|int|否|电量百分比|
+- **URL**：`POST /devices/heartbeat`，认证不需要
+- **请求体**：`{"deviceSn": "SN001", "batteryLevel": 80}`
 
-* **返回**：`data = "ok"`
+### 3.10 硬件自检上报（HTTP 降级通道）
 
-### 2.8 硬件自检上报（HTTP 降级通道）
+- **URL**：`POST /devices/self-check`，认证不需要
+- **请求体**：`{"deviceSn": "SN001", "batteryLevel": 10, "sensorFault": false}`
 
-* **URL**：`POST /devices/self-check`
-* **认证**：不需要（硬件通道）
-* **请求体**：
+---
 
-```json
-{"deviceSn": "SN001", "batteryLevel": 10, "sensorFault": false}
-```
+## 4. 烟雾监测 — `/smoke-readings`
 
-|字段|类型|必填|说明|
-|-|-|-|-|
-|deviceSn|string|是|设备序列号|
-|batteryLevel|int|否|电量百分比|
-|sensorFault|boolean|否|传感器是否故障|
+### 4.1 烟雾记录分页列表
 
-* **返回**：`data = "ok"`（`sensorFault=true` 时触发 `SENSOR\_FAULT` 告警）
+- **URL**：`GET /smoke-readings`
+- **角色**：`SYSTEM_ADMIN` / `COMMUNITY_ADMIN` / `RESIDENT`
+- **参数**：`page` / `pageSize` / `deviceId` / `startTime` / `endTime`
+- **返回** `PageResult<SmokeReadingsVO>`：`id`、`deviceId`、`deviceName`、`smokeConcentration`、`temperature`、`coConcentration`、`createdAt`
 
-\---
+### 4.2 设备最新烟雾
 
-## 3\. 烟雾监测 — `/smoke-readings`
+- **URL**：`GET /smoke-readings/latest/{deviceId}`
+- **返回** `LatestSmokeVO`：`deviceId`、`smokeConcentration`、`temperature`、`coConcentration`、`createdAt`
 
-### 3.1 烟雾记录分页列表
+### 4.3 历史趋势（多指标）
 
-* **URL**：`GET /smoke-readings`
-* **请求参数**：
-
-|参数|类型|必填|说明|
-|-|-|-|-|
-|page|int|否|默认 1|
-|pageSize|int|否|默认 10|
-|deviceId|long|否|设备 ID|
-|startTime|string|否|开始时间 `yyyy-MM-dd HH:mm:ss`|
-|endTime|string|否|结束时间|
-
-* **返回**：`PageResult<SmokeReadingsVO>`
-
-|字段|类型|说明|
-|-|-|-|
-|id|string|记录 ID|
-|deviceId|string|设备 ID|
-|deviceName|string|设备名称|
-|smokeConcentration|number|烟雾浓度|
-|temperature|number|温度（可空）|
-|coConcentration|number|CO 浓度（可空）|
-|createdAt|string|采集时间|
-
-### 3.2 设备最新烟雾
-
-* **URL**：`GET /smoke-readings/latest/{deviceId}`
-* **返回** `LatestSmokeVO`：`deviceId`、`smokeConcentration`、`temperature`、`coConcentration`、`createdAt`
-
-### 3.3 历史趋势
-
-* **URL**：`GET /smoke-readings/trend`
-* **请求参数**：
+- **URL**：`GET /smoke-readings/trend`
+- **角色**：`SYSTEM_ADMIN` / `COMMUNITY_ADMIN` / `RESIDENT`
 
 |参数|类型|必填|说明|
 |-|-|-|-|
@@ -238,211 +315,121 @@
 |startTime|string|是|`yyyy-MM-dd HH:mm:ss`|
 |endTime|string|是|`yyyy-MM-dd HH:mm:ss`|
 
-* **返回**：`List<TrendPointVO>`（`time` + `value`，按时间升序，供折线图）
-
-### 3.4 烟雾数据上报（HTTP 降级通道）
-
-* **URL**：`POST /smoke-readings/report`
-* **认证**：不需要（硬件通道）
-* **请求体**：
+- **返回** `TrendVO`（三条曲线，供折线图）：
 
 ```json
-{"deviceSn": "SN001", "smokeConcentration": 250, "temperature": 60, "coConcentration": 150}
+{
+  "smoke": [{"time": "2026-08-23T15:26:54", "value": "50.00"}],
+  "temperature": [{"time": "2026-08-23T15:26:54", "value": "25.00"}],
+  "co": [{"time": "2026-08-23T15:26:54", "value": "5.00"}]
+}
 ```
 
-|字段|类型|必填|说明|
+### 4.4 烟雾数据上报（HTTP 降级通道）
+
+- **URL**：`POST /smoke-readings/report`，认证不需要
+- **请求体**：`{"deviceSn": "SN001", "smokeConcentration": 250, "temperature": 60, "coConcentration": 150}`
+- **说明**：刷新在线状态、保存记录、WebSocket 推送，并触发规则引擎分级判定。
+
+---
+
+## 5. 告警管理 — `/alarm-logs`
+
+> 数据权限：居民/小区管理员只看本小区告警；消防员只看火警；系统管理员看全部。
+
+### 5.1 告警分页列表
+
+- **URL**：`GET /alarm-logs`
+- **参数**：`page` / `pageSize` / `deviceId` / `alarmType` / `alarmLevel` / `status`
+- **返回** `PageResult<AlarmLogVO>`：`id`、`deviceId`、`deviceName`、`alarmType`、`alarmLevel`、`message`、`status`、`disposition`、`acknowledgedAt`、`escalated`、`createdAt`、`resolvedAt`
+
+### 5.2 告警统计
+
+- **URL**：`GET /alarm-logs/statistics`
+- **角色**：`SYSTEM_ADMIN` / `COMMUNITY_ADMIN` / `FIREFIGHTER`
+- **返回** `AlarmStatisticsVO`：`activeCount`、`fireCount`、`warnCount`、`byType[]`
+
+### 5.3 告警详情
+
+- **URL**：`GET /alarm-logs/{id}`
+- **返回**：`AlarmLogVO`
+
+### 5.4 解决告警
+
+- **URL**：`PUT /alarm-logs/{id}/resolve`
+- **角色**：`SYSTEM_ADMIN` / `COMMUNITY_ADMIN` / `FIREFIGHTER`（消防员只能解决火警）
+
+### 5.5 确认告警（记录确认时间）
+
+- **URL**：`PUT /alarm-logs/{id}/acknowledge`
+- **角色**：`SYSTEM_ADMIN` / `COMMUNITY_ADMIN`
+
+### 5.6 确认处置结论（误报率统计用）
+
+- **URL**：`PUT /alarm-logs/{id}/confirm`
+- **角色**：`SYSTEM_ADMIN` / `COMMUNITY_ADMIN` / `FIREFIGHTER`（消防员只能处置火警）
+- **请求体**：`{"disposition": "CONFIRMED_FIRE"}`（`CONFIRMED_FIRE` / `FALSE_ALARM`）
+
+---
+
+## 6. 阈值配置 — `/threshold-config`
+
+### 6.1 获取阈值
+
+- **URL**：`GET /threshold-config`
+- **返回** `ThresholdConfigVO`：`id`、`smokeWarnThreshold`、`smokeAlarmThreshold`、`temperatureThreshold`、`coThreshold`、`heartbeatTimeout`、`batteryLowThreshold`、`debounceCount`、`escalationMinutes`、`multiParamEnabled`、`updatedAt`
+
+### 6.2 更新阈值
+
+- **URL**：`PUT /threshold-config`
+- **角色**：`SYSTEM_ADMIN`
+- **请求体**：上述字段，非空才更新。
+
+---
+
+## 7. 控制日志 — `/control-logs`
+
+- **URL**：`GET /control-logs`（分页，参数 `page` / `pageSize` / `deviceId` / `command` / `operatorId`）
+- **URL**：`GET /control-logs/{id}`
+- **角色**：`SYSTEM_ADMIN`
+- **返回** `ControlLogVO`：`id`、`deviceId`、`deviceName`、`operatorId`、`operatorName`、`command`、`source`、`result`、`createdAt`
+
+---
+
+## 8. RAG 问答 — `/knowledge-chunks`
+
+### 8.1 大模型问答
+
+- **URL**：`POST /knowledge-chunks/chat`
+- **请求体**：`{"message": "烟感报警后应该怎么疏散人员？"}`
+- **返回**：`data = "大模型回复文本"`
+
+### 8.2 知识库导入
+
+- **URL**：`POST /knowledge-chunks/import`
+- **角色**：`SYSTEM_ADMIN`
+- **请求体**：`{"documents": [{"title": "火灾应急预案", "content": "..."}]}`
+
+---
+
+## 9. WebSocket 实时推送 — `/ws`
+
+- **连接**：`ws://localhost:8080/ws?token={jwt_token}`（STOMP over WebSocket）
+- **消息信封**：`{"type": "...", "timestamp": "...", "data": {...}}`
+
+|主题|订阅者|消息类型|触发时机|
 |-|-|-|-|
-|deviceSn|string|是|设备序列号|
-|smokeConcentration|number|是|烟雾浓度|
-|temperature|number|否|温度（联合判定用）|
-|coConcentration|number|否|CO 浓度（联合判定用）|
+|`/topic/smoke-readings`|全部|`SMOKE_REPORTED`|烟雾数据上报|
+|`/topic/device-online`|全部|`DEVICE_ONLINE_STATUS_CHANGED`|设备上线/离线|
+|`/topic/alarms/fire`|全部角色|`ALARM_CREATED`|火警（跨小区广播）|
+|`/topic/community/{communityId}/alarms`|本小区居民/管理员|`ALARM_CREATED`|本小区告警（含离线/低电量/故障）|
+|`/topic/community/{communityId}/devices`|本小区管理员|`DEVICE_STATUS_CHANGED`|设备状态与自检|
+|`/topic/community/{communityId}/smoke`|本小区居民/管理员|`SMOKE_REPORTED`|烟雾读数|
+|`/user/{userId}/queue/alerts`|单个住户|`ALARM_HIGHLIGHT`|绑定设备告警重点提示（定向推送）|
 
-* **返回**：`data = "ok"`
+---
 
-> \*\*说明\*\*：上报会自动刷新设备在线状态、保存记录，并触发规则引擎分级判定（连续超阈值 N 次后产生告警）。
-
-\---
-
-## 4\. 告警管理 — `/alarm-logs`
-
-### 4.1 告警分页列表
-
-* **URL**：`GET /alarm-logs`
-* **请求参数**：
-
-|参数|类型|必填|说明|
-|-|-|-|-|
-|page / pageSize|int|否|分页|
-|deviceId|long|否|设备 ID|
-|alarmType|string|否|告警类型|
-|alarmLevel|string|否|告警等级|
-|status|string|否|`ACTIVE` / `RESOLVED`|
-
-* **返回**：`PageResult<AlarmLogVO>`
-
-|字段|类型|说明|
-|-|-|-|
-|id|string|告警 ID|
-|deviceId|string|设备 ID|
-|deviceName|string|设备名称|
-|alarmType|string|告警类型|
-|alarmLevel|string|告警等级|
-|message|string|告警详情|
-|status|string|`ACTIVE` / `RESOLVED`|
-|disposition|string|处置结论（可空）|
-|acknowledgedAt|string|首次确认时间（可空）|
-|escalated|boolean|是否已升级|
-|createdAt|string|产生时间|
-|resolvedAt|string|解决时间（可空）|
-
-### 4.2 告警统计
-
-* **URL**：`GET /alarm-logs/statistics`
-* **返回** `AlarmStatisticsVO`：
-
-|字段|类型|说明|
-|-|-|-|
-|activeCount|string|活跃告警总数|
-|fireCount|string|活跃火警数|
-|warnCount|string|活跃预警数|
-|byType|array|`\[{alarmType, count}]` 按类型统计|
-
-### 4.3 告警详情
-
-* **URL**：`GET /alarm-logs/{id}`
-* **返回**：`AlarmLogVO`
-
-### 4.4 解决告警
-
-* **URL**：`PUT /alarm-logs/{id}/resolve`
-* **角色**：`SYSTEM\_ADMIN` / `COMMUNITY\_ADMIN`
-* **返回**：`data = "处理成功"`
-
-### 4.5 确认告警（记录确认时间）
-
-* **URL**：`PUT /alarm-logs/{id}/acknowledge`
-* **角色**：`SYSTEM\_ADMIN` / `COMMUNITY\_ADMIN`
-
-### 4.6 确认处置结论（误报率统计用）
-
-* **URL**：`PUT /alarm-logs/{id}/confirm`
-* **角色**：`SYSTEM\_ADMIN` / `COMMUNITY\_ADMIN` / `FIREFIGHTER`
-* **请求体**：
-
-```json
-{"disposition": "CONFIRMED\_FIRE"}
-```
-
-|字段|类型|必填|说明|
-|-|-|-|-|
-|disposition|string|是|`CONFIRMED\_FIRE`（真火警）/ `FALSE\_ALARM`（误报）|
-
-\---
-
-## 5\. 阈值配置 — `/threshold-config`
-
-### 5.1 获取阈值
-
-* **URL**：`GET /threshold-config`
-* **返回** `ThresholdConfigVO`：
-
-|字段|类型|说明|
-|-|-|-|
-|id|string|配置 ID（固定 1）|
-|smokeWarnThreshold|number|烟雾预警阈值|
-|smokeAlarmThreshold|number|烟雾报警阈值（火警）|
-|temperatureThreshold|number|温度阈值（联合判定）|
-|coThreshold|number|CO 阈值（联合判定）|
-|heartbeatTimeout|int|心跳超时秒数|
-|batteryLowThreshold|int|低电量阈值百分比|
-|debounceCount|int|消抖连续次数|
-|escalationMinutes|int|告警升级分钟数|
-|multiParamEnabled|boolean|是否启用多参数联合判定|
-|updatedAt|string|更新时间|
-
-### 5.2 更新阈值
-
-* **URL**：`PUT /threshold-config`
-* **角色**：`SYSTEM\_ADMIN`
-* **请求体**：`ThresholdUpdateRequest`（上述字段，均为可选，非空才更新）
-
-```json
-{"smokeWarnThreshold": 100, "smokeAlarmThreshold": 200, "debounceCount": 3}
-```
-
-\---
-
-## 6\. 控制日志 — `/control-logs`
-
-### 6.1 日志分页列表
-
-* **URL**：`GET /control-logs`
-* **角色**：`SYSTEM\_ADMIN`
-* **请求参数**：`page` / `pageSize` / `deviceId` / `command` / `operatorId`
-* **返回**：`PageResult<ControlLogVO>`
-
-|字段|类型|说明|
-|-|-|-|
-|id|string|日志 ID|
-|deviceId|string|设备 ID（可空）|
-|deviceName|string|设备名称|
-|operatorId|string|操作人 ID（可空）|
-|operatorName|string|操作人用户名|
-|command|string|操作类型|
-|source|string|`SYSTEM` / `MANUAL` / `AUTO`|
-|result|string|`SUCCESS` / `FAIL`|
-|createdAt|string|操作时间|
-
-### 6.2 日志详情
-
-* **URL**：`GET /control-logs/{id}`
-* **角色**：`SYSTEM\_ADMIN`
-
-\---
-
-## 7\. RAG 问答 — `/knowledge-chunks`
-
-### 7.1 大模型问答
-
-* **URL**：`POST /knowledge-chunks/chat`
-* **请求体**：
-
-```json
-{"message": "烟感报警后应该怎么疏散人员？"}
-```
-
-* **返回**：`data = "大模型回复文本"`
-
-### 7.2 知识库导入
-
-* **URL**：`POST /knowledge-chunks/import`
-* **角色**：`SYSTEM\_ADMIN`
-* **请求体**：
-
-```json
-{"documents": \[{"title": "火灾应急预案", "content": "发现火情后..."}]}
-```
-
-* **返回**：`data = "成功导入 N 条知识"`
-
-\---
-
-## 8\. WebSocket 实时推送 — `/ws`
-
-* **连接**：`ws://localhost:8080/ws?token={jwt\_token}`（STOMP over WebSocket）
-* **消息信封**：`{"type": "...", "timestamp": "...", "data": {...}}`
-
-|主题|消息类型|触发时机|
-|-|-|-|
-|`/topic/smoke-readings`|`SMOKE\_REPORTED`|烟雾数据上报|
-|`/topic/device-status`|`DEVICE\_STATUS\_CHANGED`|设备状态变更|
-|`/topic/device-online`|`DEVICE\_ONLINE\_STATUS\_CHANGED`|设备上线/离线|
-|`/topic/alarms`|`ALARM\_CREATED`|新告警|
-|`/topic/alarms`|`ALARM\_ESCALATED`|告警升级|
-
-\---
-
-## 9\. MQTT 主题（硬件通信）
+## 10. MQTT 主题（硬件通信）
 
 |Topic|方向|QoS|说明|
 |-|-|-|-|
@@ -458,28 +445,30 @@
 // smoke
 {"deviceSn": "SN001", "smokeConcentration": 250, "temperature": 60, "coConcentration": 150}
 // alarm
-{"deviceSn": "SN001", "alarmType": "SMOKE\_HIGH", "message": "烟雾异常"}
+{"deviceSn": "SN001", "alarmType": "SMOKE_HIGH", "message": "烟雾异常"}
 // heartbeat
 {"deviceSn": "SN001", "batteryLevel": 80}
 // self-check
 {"deviceSn": "SN001", "batteryLevel": 10, "sensorFault": false}
 ```
 
-\---
+---
 
 ## 附录 A：枚举值
 
-**告警类型 `alarmType`**：`SMOKE\_HIGH`（烟雾超标）、`TEMP\_HIGH`（温度超标）、`CO\_HIGH`（CO 超标）、`OFFLINE`（离线）、`LOW\_BATTERY`（低电量）、`SENSOR\_FAULT`（传感器故障）
+**账号状态 `status`**：`PENDING`（待审核）、`ACTIVE`（正常）、`DISABLED`（禁用）
 
-**告警等级 `alarmLevel`**：`WARN`（预警）、`FIRE`（火警）、`OFFLINE`（离线）、`FAULT`（故障）、`LOW\_BATTERY`（低电量）
+**告警类型 `alarmType`**：`SMOKE_HIGH`、`TEMP_HIGH`、`CO_HIGH`、`OFFLINE`、`LOW_BATTERY`、`SENSOR_FAULT`
 
-**告警状态 `status`**：`ACTIVE`（活跃）、`RESOLVED`（已解决）
+**告警等级 `alarmLevel`**：`WARN`、`FIRE`、`OFFLINE`、`FAULT`、`LOW_BATTERY`
 
-**处置结论 `disposition`**：`CONFIRMED\_FIRE`（真火警）、`FALSE\_ALARM`（误报）
+**告警状态 `status`**：`ACTIVE`、`RESOLVED`
+
+**处置结论 `disposition`**：`CONFIRMED_FIRE`、`FALSE_ALARM`
 
 **在线状态 `onlineStatus`**：`ONLINE`、`OFFLINE`
 
-**设备类型 `deviceType`**：`SMOKE\_SENSOR`（烟感）、`CAMERA`（摄像头）、`BROADCAST`（广播）、`SPRINKLER`（喷淋）、`EXHAUST\_FAN`（排烟风机）、`FIRE\_DOOR`（防火门）、`ELEVATOR`（电梯）
+**设备类型 `deviceType`**：`SMOKE_SENSOR`、`CAMERA`、`BROADCAST`、`SPRINKLER`、`EXHAUST_FAN`、`FIRE_DOOR`、`ELEVATOR`
 
 ## 附录 B：错误返回结构
 
@@ -487,5 +476,4 @@
 {"code": 500, "errorMsg": "错误描述", "data": null}
 ```
 
-常见错误码：`400` 参数错误、`401` 未登录/登录过期、`403` 无权限、`404` 资源不存在、`500` 服务器错误。
-
+常见错误码：`400` 参数错误、`401` 未登录/登录过期、`403` 无权限或账号禁用/待审核、`404` 资源不存在、`500` 服务器错误。

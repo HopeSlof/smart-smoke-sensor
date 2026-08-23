@@ -13,9 +13,11 @@ import com.cqu.mapper.CommunityMapper;
 import com.cqu.mapper.DevicesMapper;
 import com.cqu.mapper.UsersMapper;
 import com.cqu.service.ICommunityService;
+import com.cqu.utils.UserHolder;
 import com.cqu.vo.CommunitySaveRequest;
 import com.cqu.vo.CommunityVO;
 import com.cqu.vo.PageResult;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -26,6 +28,7 @@ import java.util.stream.Collectors;
 /**
  * 小区服务实现
  */
+@Slf4j
 @Service
 public class CommunityServiceImpl extends ServiceImpl<CommunityMapper, Community> implements ICommunityService {
 
@@ -39,6 +42,10 @@ public class CommunityServiceImpl extends ServiceImpl<CommunityMapper, Community
     public PageResult<CommunityVO> pageCommunities(int page, int pageSize, String name) {
         LambdaQueryWrapper<Community> wrapper = new LambdaQueryWrapper<>();
         wrapper.like(name != null && !name.isBlank(), Community::getName, name);
+        // 小区管理员只能看本小区
+        if (Role.COMMUNITY_ADMIN.name().equals(UserHolder.getRole())) {
+            wrapper.eq(Community::getId, UserHolder.getCommunityId());
+        }
         wrapper.orderByAsc(Community::getId);
         Page<Community> pageResult = this.page(new Page<>(page, pageSize), wrapper);
 
@@ -54,6 +61,13 @@ public class CommunityServiceImpl extends ServiceImpl<CommunityMapper, Community
         Community community = this.getById(id);
         if (community == null) {
             throw new BusinessException("小区不存在");
+        }
+        // 小区管理员只能查看本小区
+        if (Role.COMMUNITY_ADMIN.name().equals(UserHolder.getRole())) {
+            Long currentCommunityId = UserHolder.getCommunityId();
+            if (currentCommunityId == null || !currentCommunityId.equals(id)) {
+                throw new BusinessException(ErrorCode.FORBIDDEN, "无权查看其他小区");
+            }
         }
         String adminName = null;
         if (community.getAdminUserId() != null) {
@@ -76,6 +90,7 @@ public class CommunityServiceImpl extends ServiceImpl<CommunityMapper, Community
         community.setAddress(request.getAddress());
         community.setAdminUserId(request.getAdminUserId());
         this.save(community);
+        log.info("新增小区: id={}, name={}", community.getId(), community.getName());
         return community.getId();
     }
 
@@ -110,6 +125,7 @@ public class CommunityServiceImpl extends ServiceImpl<CommunityMapper, Community
             throw new BusinessException("该小区下存在用户或设备，无法删除");
         }
         this.removeById(id);
+        log.info("删除小区: id={}", id);
     }
 
     @Override
@@ -132,6 +148,7 @@ public class CommunityServiceImpl extends ServiceImpl<CommunityMapper, Community
         }
         community.setAdminUserId(adminUserId);
         this.updateById(community);
+        log.info("设置小区负责人: communityId={}, adminUserId={}", id, adminUserId);
     }
 
     private Map<Long, String> buildAdminNameMap(List<Community> communities) {
