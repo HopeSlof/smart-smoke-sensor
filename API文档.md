@@ -1,6 +1,6 @@
 # 智慧烟感管理平台 — API 接口文档
 
-> 本文档由后端代码梳理生成，供前端对接使用。版本：负责人机制（多小区 + 角色 + 数据权限）落地后。
+> 本文档由后端代码梳理生成，供前端对接使用。版本：前端 Web 面板 + 站内消息 + 忘记密码 + 消防员角色完整支持。
 
 ## 通用约定
 
@@ -14,7 +14,7 @@
 
 ### 无需 token 的接口
 
-- `POST /users/register`、`POST /users/login`
+- `POST /users/register`、`POST /users/login`、`POST /users/reset-password`（忘记密码）
 - 硬件通道（HTTP 降级）：`POST /devices/heartbeat`、`POST /devices/self-check`、`POST /smoke-readings/report`
 
 ### 角色与权限总览
@@ -23,10 +23,10 @@
 |-|-|-|-|
 |居民|`RESIDENT`|本小区只读|查看本小区设备/告警，绑定设备告警重点提示|
 |小区管理员|`COMMUNITY_ADMIN`|本小区管理|本小区设备/用户/告警管理|
-|消防员|`FIREFIGHTER`|跨小区仅火警|只看火警，可解决/确认火警|
+|消防员|`FIREFIGHTER`|跨小区|查看全部设备/趋势，处置火警（解决/确认/归档）|
 |系统管理员|`SYSTEM_ADMIN`|全量|所有小区、用户、设备、阈值、RAG|
 
-> 数据权限规则：居民/小区管理员只能看本小区数据；消防员只能看火警；系统管理员看全部。
+> 数据权限规则：居民/小区管理员只能看本小区数据；消防员可跨小区查看设备与火警；系统管理员看全部。
 
 ---
 
@@ -36,12 +36,13 @@
 
 - **URL**：`POST /users/register`
 - **认证**：不需要
-- **说明**：注册**强制为居民（RESIDENT）**，忽略前端传入的 `role`；注册后为**待审核（PENDING）**，需管理员审核通过后才能登录；**注册不返回 token**。
+- **说明**：注册支持 `RESIDENT`（普通用户）与 `COMMUNITY_ADMIN`（小区管理员）两种角色，其余角色一律降级为 `RESIDENT`；注册后为**待审核（PENDING）**，需管理员审核通过后才能登录；**注册不返回 token**。
 
 |字段|类型|必填|说明|
 |-|-|-|-|
 |username|string|是|用户名，不可重复|
 |password|string|是|密码（BCrypt 加密存储）|
+|role|string|否|`RESIDENT`（默认）/ `COMMUNITY_ADMIN`，其他值降级为 RESIDENT|
 |communityId|long|是|归属小区|
 |realName|string|否|真实姓名（审核用）|
 |phone|string|否|联系电话（审核用）|
@@ -69,6 +70,11 @@
 |userId|string|用户 ID|
 |username|string|用户名|
 |role|string|角色|
+|realName|string|真实姓名|
+|phone|string|绑定手机号|
+|communityId|long|归属小区 ID（可空）|
+|communityName|string|归属小区名称（可空）|
+|status|string|账号状态 `ACTIVE`/`PENDING`/`DISABLED`|
 
 - **失败**：待审核返回「账号待审核」，禁用返回「账号已被禁用」。
 
@@ -155,6 +161,20 @@
 - **角色**：`SYSTEM_ADMIN` / `COMMUNITY_ADMIN` / `RESIDENT`（居民只能查自己）
 - **返回**：`List<DeviceVO>`
 
+### 1.11 忘记密码（无需登录态）
+
+- **URL**：`POST /users/reset-password`
+- **认证**：不需要
+- **请求体**：
+
+|字段|类型|必填|说明|
+|-|-|-|-|
+|username|string|是|登录账号|
+|phone|string|是|绑定手机号（需与注册时一致）|
+|newPassword|string|是|新密码|
+
+- **说明**：账号 + 绑定手机号匹配后重置密码；不匹配返回错误。
+
 ---
 
 ## 2. 小区管理 — `/community`
@@ -208,18 +228,19 @@
 
 - **URL**：`PUT /community/{id}/admin`
 - **角色**：`SYSTEM_ADMIN`
-- **请求体**：`{"adminUserId": 123}`（`adminUserId` 为空表示清除负责人；负责人必须为 COMMUNITY_ADMIN 角色）
+- **请求体**：`{"adminUserId": 123}`（`adminUserId` 为空表示清除负责人）
+- **说明**：若被指定用户当前为居民（RESIDENT），会自动升级为小区管理员（COMMUNITY_ADMIN）；消防员/系统管理员仍会被拒绝。
 
 ---
 
 ## 3. 设备管理 — `/devices`
 
-> 数据权限：`RESIDENT`、`COMMUNITY_ADMIN` 只能看本小区设备；`SYSTEM_ADMIN` 看全部；消防员不可访问设备接口。
+> 数据权限：`RESIDENT`、`COMMUNITY_ADMIN` 只能看本小区设备；`SYSTEM_ADMIN`、`FIREFIGHTER` 看全部设备。
 
 ### 3.1 设备分页列表
 
 - **URL**：`GET /devices`
-- **角色**：`SYSTEM_ADMIN` / `COMMUNITY_ADMIN` / `RESIDENT`
+- **角色**：`SYSTEM_ADMIN` / `COMMUNITY_ADMIN` / `RESIDENT` / `FIREFIGHTER`
 
 |参数|类型|必填|说明|
 |-|-|-|-|
@@ -239,7 +260,7 @@
 ### 3.3 设备详情
 
 - **URL**：`GET /devices/{id}`
-- **角色**：`SYSTEM_ADMIN` / `COMMUNITY_ADMIN` / `RESIDENT`
+- **角色**：`SYSTEM_ADMIN` / `COMMUNITY_ADMIN` / `RESIDENT` / `FIREFIGHTER`
 - **返回** `DeviceDetailVO`（`DeviceVO` 字段 + `latestSmokeConcentration`、`activeAlarmCount`）
 
 ### 3.4 添加设备
@@ -295,7 +316,7 @@
 ### 4.1 烟雾记录分页列表
 
 - **URL**：`GET /smoke-readings`
-- **角色**：`SYSTEM_ADMIN` / `COMMUNITY_ADMIN` / `RESIDENT`
+- **角色**：`SYSTEM_ADMIN` / `COMMUNITY_ADMIN` / `RESIDENT` / `FIREFIGHTER`
 - **参数**：`page` / `pageSize` / `deviceId` / `startTime` / `endTime`
 - **返回** `PageResult<SmokeReadingsVO>`：`id`、`deviceId`、`deviceName`、`smokeConcentration`、`temperature`、`coConcentration`、`createdAt`
 
@@ -362,7 +383,7 @@
 ### 5.5 确认告警（记录确认时间）
 
 - **URL**：`PUT /alarm-logs/{id}/acknowledge`
-- **角色**：`SYSTEM_ADMIN` / `COMMUNITY_ADMIN`
+- **角色**：`SYSTEM_ADMIN` / `COMMUNITY_ADMIN` / `FIREFIGHTER`
 
 ### 5.6 确认处置结论（误报率统计用）
 
@@ -396,7 +417,45 @@
 
 ---
 
-## 8. RAG 问答 — `/knowledge-chunks`
+## 8. 站内消息 — `/messages`
+
+居民与管理员之间的双向消息。
+
+### 8.1 居民发消息给管理员
+
+- **URL**：`POST /messages`
+- **角色**：`RESIDENT`
+- **请求体**：`{"content": "..."}`
+- **返回**：`data = "发送成功"`
+
+### 8.2 管理员查消息
+
+- **URL**：`GET /messages`
+- **角色**：`SYSTEM_ADMIN`（看全部）/ `COMMUNITY_ADMIN`（看本小区）
+- **返回**：`List<MessageVO>`
+
+### 8.3 居民查我的消息
+
+- **URL**：`GET /messages/my`
+- **角色**：`RESIDENT`
+- **返回**：`List<MessageVO>`（自己发的消息 + 管理员回复）
+
+### 8.4 管理员回复居民消息
+
+- **URL**：`POST /messages/{id}/reply`
+- **角色**：`SYSTEM_ADMIN` / `COMMUNITY_ADMIN`
+- **请求体**：`{"content": "..."}`
+
+### 8.5 管理员标记已读
+
+- **URL**：`PUT /messages/{id}/read`
+- **角色**：`SYSTEM_ADMIN` / `COMMUNITY_ADMIN`
+
+**MessageVO 字段**：`id`、`senderUserId`、`senderUsername`、`communityId`、`type`、`content`、`status`、`replyToId`、`senderRole`（`RESIDENT`/`ADMIN`）、`createdAt`
+
+---
+
+## 9. RAG 问答 — `/knowledge-chunks`
 
 ### 8.1 大模型问答
 
@@ -429,7 +488,7 @@
 
 ---
 
-## 10. MQTT 主题（硬件通信）
+## 11. MQTT 主题（硬件通信）
 
 |Topic|方向|QoS|说明|
 |-|-|-|-|

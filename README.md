@@ -1,10 +1,11 @@
-# 智慧烟感管理平台（后端）
+# 智慧烟感管理平台
 
-面向社区/园区的火灾预警与设备管理后端系统。通过 MQTT 接收烟感设备实时数据，基于多参数联合判定 + 消抖规则引擎实现分级告警，并提供设备管理、离线/低电量检测、告警升级、警情统计与 RAG 大模型问答；内置**多小区负责人机制**（居民 / 小区管理员 / 消防员 / 系统管理员四角色 + 数据权限 + 注册审核 + 住户设备绑定）。
+面向社区/园区的火灾预警与设备管理系统，含后端服务与前端 Web 面板。后端通过 MQTT 接收烟感设备实时数据，基于多参数联合判定 + 消抖规则引擎实现分级告警，并提供设备管理、离线/低电量检测、告警升级、警情统计与 RAG 大模型问答；内置**多小区负责人机制**（居民 / 小区管理员 / 消防员 / 系统管理员四角色 + 数据权限 + 注册审核 + 住户设备绑定 + 站内消息）。前端提供登录、管理大屏、居民个人中心、消防员指挥台等页面。
 
 ## 技术栈
 
-Java 21 · Spring Boot 3.5 · MyBatis-Plus · PostgreSQL(pgvector) · MQTT · WebSocket(STOMP) · JWT
+后端：Java 21 · Spring Boot 3.5 · MyBatis-Plus · PostgreSQL(pgvector) · MQTT · WebSocket(STOMP) · JWT
+前端：原生 HTML / CSS / JavaScript（无构建，Live Server 直接运行）
 
 ## 环境要求
 
@@ -41,7 +42,7 @@ docker exec -i pg17-vector createdb -U postgres smart-smoke-sensor
 type sql\schema.sql | docker exec -i pg17-vector psql -U postgres -d smart-smoke-sensor
 ```
 
-> `schema.sql` 已包含 9 张表：`users`、`community`、`devices`、`user_device`、`smoke_readings`、`threshold_config`、`alarm_logs`、`control_logs`、`knowledge_chunks`。
+> `schema.sql` 已包含 10 张表：`users`、`community`、`devices`、`user_device`、`smoke_readings`、`threshold_config`、`alarm_logs`、`control_logs`、`knowledge_chunks`、`user_message`。
 
 ### 3. 配置敏感信息
 
@@ -65,6 +66,16 @@ curl -X POST http://localhost:8080/users/login -H "Content-Type: application/jso
 ```
 
 返回 `{"code":200,...}` 即链路正常。
+
+### 6. 启动前端
+
+前端为纯静态页面，位于 `frontend/web-dashboard/`，无需构建，用任意静态服务器即可运行（推荐 VS Code 的 Live Server 插件）：
+
+1. 用 VS Code 打开 `frontend/web-dashboard/` 目录。
+2. 右键 `login.html` → 「Open with Live Server」（默认端口 5500）。
+3. 浏览器打开后登录即可（默认管理员 `admin / 123456`，或使用 [样例数据脚本](sql/sample-data.sql) 中的账号，密码均为 `123456`）。
+
+> 前端通过 API 访问后端，默认指向 `http://localhost:8080`；如需局域网联调，把前端 JS 中的后端地址改为后端机器 IP（后端已开启跨域 CORS）。
 
 ## 配置说明
 
