@@ -1,0 +1,99 @@
+/* =======================================================
+ * animations.css - 全局关键帧动画与动效类
+ * ======================================================= */
+
+/* ---------- 扫描线背景 ---------- */
+@keyframes scanline {
+  0%   { background-position: 0 0; }
+  100% { background-position: 0 100vh; }
+}
+
+/* ---------- 呼吸脉冲（用于状态指示灯） ---------- */
+@keyframes pulse {
+  0%, 100% { opacity: 1;    transform: scale(1); }
+  50%      { opacity: 0.55; transform: scale(0.8); }
+}
+.anim-pulse { animation: pulse 1.5s ease-in-out infinite; }
+.anim-pulse-fast { animation: pulse 1s ease-in-out infinite; }
+.anim-pulse-slow { animation: pulse 2.2s ease-in-out infinite; }
+
+/* ---------- 标题光晕呼吸 ---------- */
+@keyframes titleGlow {
+  0%   { filter: drop-shadow(0 0 10px rgba(0, 229, 255, 0.3)); }
+  100% { filter: drop-shadow(0 0 25px rgba(0, 229, 255, 0.6)); }
+}
+
+/* ---------- 旋转（雷达圆） ---------- */
+@keyframes rotate {
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+.anim-rotate-slow { animation: rotate 20s linear infinite; }
+
+/* ---------- 闪烁（危险状态） ---------- */
+@keyframes dangerBlink {
+  0%, 100% { background: rgba(0, 50, 100, 0.2); }
+  50%      { background: rgba(255, 61, 113, 0.12); }
+}
+.anim-danger-blink { animation: dangerBlink 2s ease-in-out infinite; }
+
+/* ---------- 告警列表滑入 ---------- */
+@keyframes alertIn {
+  from { opacity: 0; transform: translateX(-20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.anim-alert-in { animation: alertIn 0.5s ease-out both; }
+
+/* ---------- 日志行淡入 ---------- */
+@keyframes logIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.anim-log-in { animation: logIn 0.4s ease-out both; }
+
+/* ---------- 进度条高光闪烁 ---------- */
+@keyframes shimmer {
+  0%   { transform: translateX(-20px); }
+  100% { transform: translateX(20px); }
+}
+.anim-shimmer::after {
+  content: '';
+  position: absolute;
+  top: 0; right: 0;
+  width: 20px; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4));
+  animation: shimmer 2s infinite;
+}
+
+/* ---------- 数据点脉冲 ---------- */
+@keyframes pointPulse {
+  0%   { transform: scale(1);   opacity: 1; }
+  50%  { transform: scale(1.8); opacity: 0.6; }
+  100% { transform: scale(1);   opacity: 1; }
+}
+.anim-point-pulse { animation: pointPulse 2s ease-in-out infinite; }
+
+/* ---------- 骨架/加载动画（预留，数据未加载时可使用） ---------- */
+@keyframes shimmerBg {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+.anim-skeleton {
+  background: linear-gradient(90deg,
+    rgba(0, 50, 100, 0.3) 25%,
+    rgba(0, 100, 180, 0.4) 50%,
+    rgba(0, 50, 100, 0.3) 75%);
+  background-size: 800px 100%;
+  animation: shimmerBg 1.4s ease-in-out infinite;
+  border-radius: 4px;
+}
+
+/* ---------- 降低动效偏好（无障碍） ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

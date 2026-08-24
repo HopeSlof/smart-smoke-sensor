@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="智慧烟感预警系统 · 登录">
+  <title>智慧烟感预警系统 · 登录</title>
+
+  <!-- 字体（复用大屏字体） -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Noto+Sans+SC:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+
+  <!-- 样式：先引基础变量（base.css → 复用变量体系）+ 登录专属样式 -->
+  <link rel="stylesheet" href="assets/css/base.css">
+  <link rel="stylesheet" href="assets/css/login.css">
+</head>
+<body class="login-page">
+
+  <!-- 背景装饰层（复用大屏的赛博蓝底 + 多层光晕 + 扫描线） -->
+  <div class="bg-decoration">
+    <div class="bg-glow bg-glow-1"></div>
+    <div class="bg-glow bg-glow-2"></div>
+    <div class="bg-grid"></div>
+    <div class="bg-scanline"></div>
+  </div>
+
+  <!-- 主体 -->
+  <main class="login-shell">
+    <!-- 左侧品牌介绍区 -->
+    <section class="login-brand" aria-label="产品介绍">
+      <div class="brand-mark">
+        <div class="brand-logo">
+          <svg viewBox="0 0 80 80" width="72" height="72" fill="none">
+            <defs>
+              <linearGradient id="lg" x1="0" x2="1" y1="0" y2="1">
+                <stop offset="0%" stop-color="#22d3ee"/>
+                <stop offset="100%" stop-color="#1d4ed8"/>
+              </linearGradient>
+            </defs>
+            <circle cx="40" cy="44" r="22" stroke="url(#lg)" stroke-width="2.6" fill="rgba(34,211,238,0.06)"/>
+            <path d="M26 28c0-6 4-10 9-10s9 4 9 10" stroke="url(#lg)" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+            <path d="M50 24c0-8 6-14 14-14s14 6 14 14" stroke="rgba(34,211,238,0.45)" stroke-width="2.4" stroke-linecap="round" fill="none" transform="translate(-24 4)"/>
+            <line x1="40" y1="54" x2="40" y2="66" stroke="url(#lg)" stroke-width="2.6" stroke-linecap="round"/>
+            <circle cx="40" cy="44" r="5" fill="url(#lg)"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1 class="brand-title">智慧烟感预警系统</h1>
+          <p class="brand-sub">Smart Smoke Detection &amp; Early Warning Platform</p>
+        </div>
+      </div>
+
+      <div class="brand-desc">
+        <p>家庭与公共场所安全保障解决方案</p>
+        <ul class="feature-list">
+          <li><i class="feat-ok"></i>实时多传感器监测（烟雾 / 温湿度 / CO / 火焰）</li>
+          <li><i class="feat-ok"></i>多级秒级告警（APP / 短信 / 语音 / 邮件联动推送）</li>
+          <li><i class="feat-ok"></i>联动控制（声光 / 排风 / 电磁阀 / 应急照明）</li>
+          <li><i class="feat-ok"></i>数据可视化 · 地图定位 · 报表统计</li>
+        </ul>
+      </div>
+
+      <div class="brand-footer">
+        <div class="chip">感知层 · 网络层 · 应用层 三层架构</div>
+        <div class="chip muted">© 2026 智慧烟感实训项目</div>
+      </div>
+    </section>
+
+    <!-- 右侧登录卡片 -->
+    <section class="login-card-wrap" aria-label="登录表单">
+      <div class="login-card">
+        <!-- 四角装饰（与大屏 panel 风格一致） -->
+        <span class="corner-tl"></span><span class="corner-tr"></span>
+        <span class="corner-bl"></span><span class="corner-br"></span>
+
+        <div class="login-header">
+          <h2>欢迎登录</h2>
+          <p>请选择您的身份类型后输入账号信息</p>
+        </div>
+
+        <!-- 登录 / 注册 视图切换 -->
+        <div class="view-switch" role="tablist">
+          <button class="view-tab is-active" role="tab" data-view="login" aria-selected="true">登录</button>
+          <button class="view-tab" role="tab" data-view="register" aria-selected="false">注册</button>
+        </div>
+
+        <!-- ============ 登录视图 ============ -->
+        <div id="view-login" class="view-panel is-active">
+          <!-- 角色切换 Tab -->
+          <div class="role-tabs" role="tablist">
+            <button class="role-tab is-active" role="tab" data-role="user" aria-selected="true">
+              <span class="r-icon">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              </span>
+              普通用户
+            </button>
+            <button class="role-tab" role="tab" data-role="community_admin" aria-selected="false">
+              <span class="r-icon">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6"/></svg>
+              </span>
+              小区管理员
+            </button>
+            <button class="role-tab" role="tab" data-role="firefighter" aria-selected="false">
+              <span class="r-icon">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C8 2 5 5 5 9c0 5 3 9 7 13 4-4 7-8 7-13 0-4-3-7-7-7z"/></svg>
+              </span>
+              消防员
+            </button>
+            <button class="role-tab" role="tab" data-role="system_admin" aria-selected="false">
+              <span class="r-icon">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              </span>
+              系统管理员
+            </button>
+          </div>
+
+          <!-- 登录表单：内联 onsubmit/onclick 双重保险，防止事件绑定因 readyState 丢失 -->
+          <form id="loginForm" class="login-form" novalidate autocomplete="on"
+                onsubmit="event.preventDefault(); event.stopPropagation(); if(window.LoginPage){window.LoginPage.submit();} return false;">
+            <div class="field">
+              <label class="field-label" for="username">账号</label>
+              <div class="field-control">
+                <span class="field-prefix">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                </span>
+                <input id="username" name="username" type="text" placeholder="请输入账号" required autocomplete="username">
+              </div>
+            </div>
+
+            <div class="field">
+              <label class="field-label" for="password">密码</label>
+              <div class="field-control">
+                <span class="field-prefix">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                </span>
+                <input id="password" name="password" type="password" placeholder="请输入密码" required autocomplete="current-password">
+                <button type="button" id="togglePwd" class="field-suffix" title="显示/隐藏密码" aria-label="切换密码可见">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="field-row">
+              <label class="remember"><input id="remember" type="checkbox" checked><span>记住账号</span></label>
+              <a href="#" class="forgot" onclick="event.preventDefault(); if(window.LoginPage){window.LoginPage.showForgot();} return false;" title="通过账号+绑定手机号重置密码">忘记密码？</a>
+            </div>
+
+            <div id="loginError" class="login-error" role="alert" hidden></div>
+
+            <button type="submit" id="submitBtn" class="submit-btn"
+                    onclick="event.preventDefault(); event.stopPropagation(); if(window.LoginPage){window.LoginPage.submit();} return false;">
+              <span class="btn-text">
+                <span data-label="user">进入个人查询中心</span>
+                <span data-label="community_admin" hidden>进入小区管理大屏</span>
+                <span data-label="firefighter" hidden>进入消防员指挥台</span>
+                <span data-label="system_admin" hidden>进入全局管理大屏</span>
+              </span>
+              <span class="btn-arrow">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+              </span>
+            </button>
+
+          </form>
+        </div>
+
+        <!-- ============ 注册视图 ============ -->
+        <div id="view-register" class="view-panel" hidden>
+          <!-- 注册角色 Tab：普通用户 + 小区管理员 + 消防员（系统管理员不开放自助注册） -->
+          <div class="role-tabs" role="tablist">
+            <button class="role-tab is-active" role="tab" data-reg-role="user" aria-selected="true">
+              <span class="r-icon">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              </span>
+              普通用户
+            </button>
+            <button class="role-tab" role="tab" data-reg-role="community_admin" aria-selected="false">
+              <span class="r-icon">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6"/></svg>
+              </span>
+              小区管理员
+            </button>
+            <button class="role-tab" role="tab" data-reg-role="firefighter" aria-selected="false">
+              <span class="r-icon" style="color:#f87171;">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
+              </span>
+              消防员
+            </button>
+          </div>
+
+          <form id="registerForm" class="login-form" novalidate autocomplete="on"
+                onsubmit="event.preventDefault(); event.stopPropagation(); if(window.LoginPage){window.LoginPage.register();} return false;">
+            <div class="field">
+              <label class="field-label" for="reg-username">账号</label>
+              <div class="field-control">
+                <span class="field-prefix">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                </span>
+                <input id="reg-username" name="reg-username" type="text" placeholder="2-20 位字母数字下划线" required autocomplete="username">
+              </div>
+            </div>
+
+            <div class="field">
+              <label class="field-label" for="reg-password">密码</label>
+              <div class="field-control">
+                <span class="field-prefix">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                </span>
+                <input id="reg-password" name="reg-password" type="password" placeholder="至少 4 位" required autocomplete="new-password">
+                <button type="button" id="toggleRegPwd" class="field-suffix" title="显示/隐藏密码" aria-label="切换密码可见">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="field">
+              <label class="field-label" for="reg-password2">确认密码</label>
+              <div class="field-control">
+                <span class="field-prefix">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                </span>
+                <input id="reg-password2" name="reg-password2" type="password" placeholder="再次输入密码" required autocomplete="new-password">
+              </div>
+            </div>
+
+            <div class="field" id="reg-realname-field">
+              <label class="field-label" for="reg-realname">真实姓名</label>
+              <div class="field-control">
+                <span class="field-prefix">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                </span>
+                <input id="reg-realname" name="reg-realname" type="text" placeholder="请输入真实姓名（审核用）" required>
+              </div>
+            </div>
+
+            <div class="field" id="reg-phone-field">
+              <label class="field-label" for="reg-phone">联系电话</label>
+              <div class="field-control">
+                <span class="field-prefix">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                </span>
+                <input id="reg-phone" name="reg-phone" type="tel" placeholder="请输入手机号（审核用）" required>
+              </div>
+            </div>
+
+            <div class="field" id="reg-community-field">
+              <label class="field-label" for="reg-community">归属小区</label>
+              <div class="field-control">
+                <span class="field-prefix">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6"/></svg>
+                </span>
+                <select id="reg-community" class="field-select" required>
+                  <option value="">请选择归属小区</option>
+                </select>
+              </div>
+            </div>
+
+            <div id="registerError" class="login-error" role="alert" hidden></div>
+            <div id="registerSuccess" class="login-success" role="status" hidden></div>
+
+            <button type="submit" id="registerBtn" class="submit-btn"
+                    onclick="event.preventDefault(); event.stopPropagation(); if(window.LoginPage){window.LoginPage.register();} return false;">
+              <span class="btn-text"><span>提交注册</span></span>
+              <span class="btn-arrow">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+              </span>
+            </button>
+
+            <div class="demo-hint">
+              <span class="hint-chip">注册说明</span>
+              <span>居民 / 小区管理员 / 消防员注册后均需等待管理员审核通过方可登录。系统管理员不开放自助注册。</span>
+            </div>
+          </form>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- 脚本：复用 DomUtil + Api 基础变量；auth.js 先加载再 login.js -->
+  <script src="assets/js/utils/dom.js?v=20260920"></script>
+  <script src="assets/js/utils/date.js?v=20260920"></script>
+  <script src="assets/js/api/client.js?v=20260913"></script>
+  <script src="assets/js/components/auth.js?v=20260920"></script>
+  <script src="assets/js/login.js?v=20260920"></script>
+</body>
+</html>

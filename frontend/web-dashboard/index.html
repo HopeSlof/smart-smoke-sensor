@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="智慧烟感监测大屏 - Smoke Detection Dashboard">
+  <title>智慧烟感预警系统</title>
+
+  <!-- Google Fonts: Orbitron (科技数字字体) + Noto Sans SC (中文) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+  <!-- CSS 分层加载 -->
+  <link rel="stylesheet" href="assets/css/base.css">
+  <link rel="stylesheet" href="assets/css/animations.css">
+  <link rel="stylesheet" href="assets/css/layout.css">
+  <link rel="stylesheet" href="assets/css/components.css?v=20260913">
+  <link rel="stylesheet" href="assets/css/modals.css?v=20260913">
+</head>
+<body>
+
+  <!-- =======================================================
+        顶部标题栏
+       ======================================================= -->
+  <header class="header">
+    <div class="header-status">
+      <div id="chip-system-status" class="status-chip">系统正常</div>
+      <div id="chip-pending-alerts" class="status-chip warn">0 告警待处理</div>
+    </div>
+
+    <!-- 全局工具栏 (紧急广播/刷新/告警静音/全屏/设置) -->
+    <div class="header-toolbar">
+      <button id="btn-broadcast" class="broadcast-btn" title="紧急广播 · 手动下发联动广播指令">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg>
+        <span>紧急广播</span>
+      </button>
+      <button id="btn-refresh" class="icon-btn" title="手动刷新数据 (F5)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+      </button>
+      <button id="btn-mute" class="icon-btn" title="告警闪烁静音开关">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/><line x1="2" y1="2" x2="22" y2="22"/></svg>
+      </button>
+      <button id="btn-fullscreen" class="icon-btn" title="切换全屏 (F11)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+      </button>
+      <button id="btn-settings" class="icon-btn" title="系统设置">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+    </div>
+
+    <div class="header-content">
+      <h1 class="header-title">智 慧 烟 感 预 警 系 统</h1>
+      <div class="header-sub">
+        <span class="dot"></span>
+        <span>家庭与公共场所安全保障解决方案 · V2.1.0</span>
+        <span class="dot"></span>
+      </div>
+    </div>
+
+    <div class="header-time">
+      <div style="display:flex;align-items:center;gap:10px;justify-content:flex-end;margin-bottom:5px;">
+        <span class="admin-chip" id="whoami" title="当前登录身份">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <span id="whoami-name">管理员</span>
+        </span>
+        <button id="btn-mailbox" class="icon-btn" title="居民消息信箱" aria-label="居民消息信箱"
+                onclick="MailboxComponent.openMailbox && MailboxComponent.openMailbox();"
+                style="padding:5px 9px;font-size:11px;border:1px solid rgba(34,211,238,0.3);background:rgba(34,211,238,0.08);color:#67e8f9;border-radius:6px;">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:3px;"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+          居民消息
+        </button>
+        <button id="logoutBtn" class="icon-btn" title="退出登录" aria-label="退出登录" style="padding:5px 9px;font-size:11px;border:1px solid rgba(239,68,68,0.3);background:rgba(239,68,68,0.08);color:#f87171;border-radius:6px;"
+                onclick="event.preventDefault(); event.stopPropagation(); if(window.Auth){window.Auth.logout({reason:'logged-out'});} return false;">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:3px;"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          退出
+        </button>
+      </div>
+      <div class="time" id="now-time">--:--:--</div>
+      <div class="date" id="now-date">----/--/--</div>
+    </div>
+  </header>
+
+  <!-- 三层架构健康度状态条（感知层/接入层/服务层/AI层） -->
+  <div id="arch-bar-host" class="arch-bar"></div>
+
+  <!-- =======================================================
+        主内容区 (三栏栅格)
+       ======================================================= -->
+  <main class="main">
+
+    <!-- ======== 左栏 ======== -->
+    <section class="column">
+
+      <!-- 设备总览 -->
+      <div id="overview" class="panel">
+        <span class="corner-tl"></span>
+        <span class="corner-br"></span>
+        <span class="glow-line"></span>
+
+        <div class="panel-title">
+          <div class="panel-title-left">
+            <span class="panel-title-bar"></span>
+            <div>
+              <h3>设备总览</h3>
+
+            </div>
+          </div>
+          <button id="btn-device-mgr" class="icon-btn panel-expand-btn" title="设备绑定管理（新增 / 解绑）"
+                  onclick="DeviceMgrComponent.openManage && DeviceMgrComponent.openManage();"
+                  style="position:absolute;top:12px;right:14px;z-index:3;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          </button>
+          <div class="panel-title-icon" aria-hidden="true" style="opacity:0.35;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <path d="M9 9h6v6H9z"/>
+            </svg>
+          </div>
+        </div>
+
+        <div class="panel-body">
+          <!-- 4张统计卡容器 -->
+          <div id="stat-cards-host" class="stat-row-wrap" style="display:flex;flex-direction:column;gap:10px;"></div>
+
+          <!-- 实时设备状态 -->
+          <div class="device-list">
+            <div class="device-list-title">
+              <span>实时设备状态</span>
+              <span class="see-all">查看全部 →</span>
+            </div>
+            <div id="device-list-host"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 关键气体指标 -->
+      <div class="sub-panel">
+        <div class="panel-title" style="margin-bottom: 12px;">
+          <div class="panel-title-left">
+            <span class="panel-title-bar" style="--c:#ef4444"></span>
+            <div>
+              <h3 style="font-size:14px;">感知层 · 智能感知设备</h3>
+
+            </div>
+          </div>
+          <div class="panel-expand-btn" id="btn-expand-perception" title="展开查看详情">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+          </div>
+        </div>
+        <div id="perception-host" class="perception-grid"></div>
+      </div>
+    </section>
+
+    <!-- ======== 中栏 ======== -->
+    <section class="column">
+
+      <!-- 实时浓度趋势 -->
+      <div id="chart" class="panel">
+        <span class="corner-tl"></span>
+        <span class="corner-br"></span>
+        <span class="glow-line"></span>
+
+        <div class="panel-title">
+          <div class="panel-title-left">
+            <span class="panel-title-bar"></span>
+            <div>
+              <h3>实时浓度趋势</h3>
+
+            </div>
+          </div>
+          <div class="panel-title-icon" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+            </svg>
+          </div>
+        </div>
+
+        <!-- 4项快速指标 -->
+        <div id="quick-metrics-host" class="quick-metrics"></div>
+
+        <!-- 工具条：左侧设备选择 / 右侧时间范围 Tab（由 chart.js 注入） -->
+        <div class="chart-toolbar">
+          <div class="toolbar-left">
+            <label class="toolbar-label" for="dm-chart-device">监测设备</label>
+            <select id="dm-chart-device" class="toolbar-select"></select>
+          </div>
+          <div id="chart-range-tabs" class="tabs toolbar-tabs"></div>
+          <button id="btn-chart-expand" class="chart-expand-btn" title="放大 · 分指标独立大图查看">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+            <span>放大</span>
+          </button>
+        </div>
+
+        <!-- SVG 趋势图容器 -->
+        <div class="chart-wrap">
+          <div class="chart-legend" id="chart-legend">
+            <div class="legend-item" data-key="smoke"><span class="legend-dot c1"></span>烟雾浓度</div>
+            <div class="legend-item" data-key="co"><span class="legend-dot c2"></span>CO浓度</div>
+            <div class="legend-item" data-key="temp"><span class="legend-dot c4"></span>环境温度</div>
+            <div class="legend-item" data-key="threshold"><span class="legend-dot c3"></span>预警阈值</div>
+          </div>
+          <!-- SVG 宿主 -->
+          <div id="chart-svg-host" style="flex:1;min-height:0;position:relative;"></div>
+        </div>
+      </div>
+
+      <!-- AI 视觉复核 -->
+      <div class="sub-panel" style="position:relative;">
+        <div class="panel-title" style="margin-bottom: 10px;">
+          <div class="panel-title-left">
+            <span class="panel-title-bar" style="--c:#a855f7"></span>
+            <div>
+              <h3 style="font-size:14px;">AI 视觉复核</h3>
+              <div class="panel-title-en">SmartJavaAI · 明火 / 烟雾形态检测</div>
+            </div>
+          </div>
+          <div class="panel-title-icon" aria-hidden="true" style="color:#a855f7;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+          </div>
+        </div>
+        <div id="review-stats-host" class="review-stats"></div>
+        <div id="review-host" class="review-list"></div>
+      </div>
+    </section>
+
+    <!-- ======== 右栏 ======== -->
+    <section class="column">
+
+      <!-- 告警事件流 -->
+      <div id="alerts" class="panel">
+        <span class="corner-tl"></span>
+        <span class="corner-br"></span>
+        <span class="glow-line"></span>
+
+        <!-- 放大按钮：打开告警汇总 Drawer -->
+        <button
+          id="btn-expand-alerts"
+          class="icon-btn panel-expand-btn"
+          title="告警汇总 / 一键处置"
+          onclick="AlertsComponent.openSummary && AlertsComponent.openSummary();">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+        </button>
+
+        <div class="panel-title">
+          <div class="panel-title-left">
+            <span class="panel-title-bar"></span>
+            <div>
+              <h3>告警事件流</h3>
+
+            </div>
+          </div>
+          <div class="panel-title-icon" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            </svg>
+          </div>
+        </div>
+
+        <!-- 告警统计 -->
+        <div id="alert-stats-host" class="alert-stats"></div>
+
+        <!-- 告警列表 -->
+        <div id="alert-list-host" class="alert-list"></div>
+      </div>
+
+      <!-- 联动控制 -->
+      <div class="sub-panel" style="position:relative;">
+        <div class="panel-title" style="margin-bottom: 10px;">
+          <div class="panel-title-left">
+            <span class="panel-title-bar" style="--c:#22c55e"></span>
+            <div>
+              <h3 style="font-size:14px;">应用层 · 联动控制</h3>
+
+            </div>
+          </div>
+        </div>
+        <div id="linkage-host" class="linkage-grid">
+          <!-- JS 注入 4 个联动按钮（声光 / 排风 / 电磁阀 / 应急照明） -->
+        </div>
+      </div>
+
+      <!-- MQTT 接入层状态 -->
+      <div class="sub-panel" style="position:relative;">
+        <div class="panel-title" style="margin-bottom: 10px;">
+          <div class="panel-title-left">
+            <span class="panel-title-bar"></span>
+            <div>
+              <h3 style="font-size:14px;">MQTT 接入层状态</h3>
+            </div>
+          </div>
+        </div>
+        <div id="mqtt-status-host" class="mqtt-status"></div>
+        <div id="mqtt-flow-host" class="mqtt-flow"></div>
+      </div>
+
+      <!-- 系统实时日志 -->
+      <div class="sub-panel" style="position:relative;">
+        <!-- 放大查看日志按钮 -->
+        <button
+          id="btn-expand-log"
+          class="icon-btn panel-expand-btn"
+          style="position:absolute;top:10px;right:12px;z-index:3;"
+          title="放大查看完整日志 (支持搜索 / 筛选 / 复制)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+        </button>
+        <div class="panel-title" style="margin-bottom: 10px;">
+          <div class="panel-title-left">
+            <span class="panel-title-bar"></span>
+            <div>
+              <h3 style="font-size:14px;">系统实时日志</h3>
+
+            </div>
+          </div>
+        </div>
+        <div id="log-list-host" class="log-list"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- =======================================================
+        紧急广播控制弹窗 (手动下发联动广播指令)
+       ======================================================= -->
+  <div id="broadcast-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="broadcast-modal-title">
+    <span class="m-corner-tr"></span><span class="m-corner-bl"></span>
+
+    <div class="modal-header">
+      <div class="modal-title-wrap">
+        <span class="modal-title-bar" style="background:var(--red);box-shadow:0 0 6px rgba(255,61,113,0.6);"></span>
+        <div>
+          <div id="broadcast-modal-title" class="modal-title">紧急广播控制</div>
+          <div class="modal-subtitle">手动下发联动广播指令 · MQTT</div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button id="btn-broadcast-close" class="icon-btn" title="关闭 (Esc)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="modal-body">
+      <!-- 广播表单 -->
+      <div class="broadcast-form">
+        <div class="bc-form-row">
+          <label class="bc-form-label">广播范围</label>
+          <div class="scope-tabs">
+            <div class="scope-tab is-active" data-scope="all">全部设备</div>
+            <div class="scope-tab" data-scope="area">指定区域</div>
+            <div class="scope-tab" data-scope="single">指定设备</div>
+          </div>
+        </div>
+        <div class="bc-form-row" id="broadcast-device-row" style="display:none;">
+          <label class="bc-form-label">设备编号</label>
+          <input id="broadcast-device" class="bc-input" type="text" placeholder="输入设备编号，如 D-A101" />
+        </div>
+        <div class="bc-form-row">
+          <label class="bc-form-label">广播内容</label>
+          <textarea id="broadcast-content" class="bc-textarea" rows="3" placeholder="输入广播内容，如：请注意，A栋3层发现火情，请立即疏散…"></textarea>
+        </div>
+        <div class="bc-presets">
+          <span class="bc-preset-label">快捷模板：</span>
+          <button class="preset-btn" data-text="请注意，检测到火情，请立即沿安全通道疏散！">火情疏散</button>
+          <button class="preset-btn" data-text="请保持冷静，等待安保人员确认现场情况。">等待确认</button>
+          <button class="preset-btn" data-text="现场已处置完毕，警报解除，请恢复正常活动。">警报解除</button>
+        </div>
+      </div>
+
+      <!-- 广播历史 -->
+      <div class="broadcast-history">
+        <div class="section-title">广播下发记录</div>
+        <div id="broadcast-history-host" class="bc-history-list">
+          <div class="empty-placeholder" style="min-height:80px;"><span>暂无广播记录</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="UI.Modal.close('broadcast-modal')">取消</button>
+      <button class="btn btn-red" id="btn-broadcast-send">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;vertical-align:-2px;"><path d="M3 11l18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg>
+        立即下发广播
+      </button>
+    </div>
+  </div>
+
+  <!-- =======================================================
+        日志全屏弹窗 (点击放大按钮打开)
+       ======================================================= -->
+  <div id="log-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="log-modal-title">
+    <span class="m-corner-tr"></span><span class="m-corner-bl"></span>
+
+    <div class="modal-header">
+      <div class="modal-title-wrap">
+        <span class="modal-title-bar"></span>
+        <div>
+          <div id="log-modal-title" class="modal-title">系统日志详情</div>
+          <div class="modal-subtitle">全量日志视图</div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button id="btn-log-copy" class="icon-btn" title="复制全部日志到剪贴板">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        </button>
+        <button id="btn-log-clear" class="icon-btn" title="清空显示">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+        </button>
+        <button id="btn-log-close" class="icon-btn" title="关闭 (Esc)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="modal-body">
+      <!-- 筛选工具栏 -->
+      <div class="filter-bar">
+        <div id="log-tabs" class="tabs">
+          <div class="tab is-active" data-level="all">全部</div>
+          <div class="tab" data-level="info">信息</div>
+          <div class="tab" data-level="ok">正常</div>
+          <div class="tab" data-level="warn">警告</div>
+          <div class="tab" data-level="err">错误</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <label id="btn-toggle-autoscroll" class="toggle-row is-on">
+            <span class="toggle-switch"></span>
+            <span>自动滚动</span>
+          </label>
+          <div class="search-box">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input id="log-search" type="text" placeholder="搜索关键字（设备 / 错误 / 网关 等）" />
+          </div>
+        </div>
+      </div>
+
+      <!-- 日志数量统计 -->
+      <div class="log-header-meta">
+        <div class="log-count">当前显示 <strong id="log-count-visible">0</strong> / 共 <strong id="log-count-total">0</strong> 条</div>
+        <div class="log-count" style="color:var(--orange);" id="log-paused-hint">💡 鼠标选中文本时自动暂停滚动</div>
+      </div>
+
+      <!-- 日志显示区 (支持拖动选择复制) -->
+      <div id="log-viewport" class="log-viewport" tabindex="0"></div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="btn-log-export">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        导出为文本
+      </button>
+      <button class="btn btn-primary" id="btn-log-ok" onclick="UI.Modal.close('log-modal')">完成</button>
+    </div>
+  </div>
+
+  <!-- =========================================================
+        11. 系统设置弹窗  settings-modal
+       ========================================================= -->
+  <div id="settings-modal" class="modal settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
+    <div class="modal-mask" onclick="UI.Modal.close('settings-modal')"></div>
+    <div class="modal-body" role="document">
+      <div class="modal-header">
+        <div>
+          <div id="settings-modal-title" class="modal-title">⚙️ 系统设置</div>
+          <div class="modal-sub" id="settings-modal-sub">统一管理告警阈值、通知策略、联动配置、账号与接入参数</div>
+        </div>
+        <button class="icon-btn" title="关闭" onclick="UI.Modal.close('settings-modal')" aria-label="关闭">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+
+      <div class="modal-content">
+        <!-- Tabs -->
+        <div class="tabs" role="tablist" id="settings-tabs">
+          <button class="tab-item active" role="tab" aria-selected="true" data-tab="tab-thresholds">
+            <span class="tab-ic">📈</span>告警阈值
+          </button>
+          <button class="tab-item" role="tab" aria-selected="false" data-tab="tab-notify">
+            <span class="tab-ic">🔔</span>通知设置
+          </button>
+          <button class="tab-item" role="tab" aria-selected="false" data-tab="tab-linkage">
+            <span class="tab-ic">🔗</span>联动策略
+          </button>
+          <button class="tab-item" role="tab" aria-selected="false" data-tab="tab-account">
+            <span class="tab-ic">🔐</span>账号安全
+          </button>
+          <button class="tab-item" role="tab" aria-selected="false" data-tab="tab-integration">
+            <span class="tab-ic">🌐</span>系统接入
+          </button>
+          <button class="tab-item" role="tab" aria-selected="false" data-tab="tab-storage">
+            <span class="tab-ic">💾</span>存储与缓存
+          </button>
+          <button class="tab-item" role="tab" aria-selected="false" data-tab="tab-community">
+            <span class="tab-ic">🏘️</span>社区管理
+          </button>
+          <button class="tab-item" role="tab" aria-selected="false" data-tab="tab-user-audit">
+            <span class="tab-ic">👥</span>用户与审核
+          </button>
+        </div>
+
+        <!-- ===== Tab 1: 告警阈值 ===== -->
+        <section class="tab-panel active" id="tab-thresholds" role="tabpanel">
+          <div class="section-card">
+            <div class="section-title">📈 告警阈值</div>
+            <p class="section-hint">传感器浓度超过阈值时按级别递进触发告警通知与联动；为避免误报，先超过「低阈值」再超过「高阈值」逐级触发。</p>
+            <div class="form-grid">
+              <label class="form-field">
+                <span class="form-label">烟雾浓度 · 低阈值 (ppm)<small>预警级，启动视觉提示</small></span>
+                <input type="number" id="s-th-smoke-low" min="0" max="2000" step="1" value="60"/>
+                <span class="form-unit">ppm</span>
+              </label>
+              <label class="form-field">
+                <span class="form-label">烟雾浓度 · 高阈值 (ppm)<small>危险级，触发通知+联动</small></span>
+                <input type="number" id="s-th-smoke-high" min="0" max="5000" step="1" value="120"/>
+                <span class="form-unit">ppm</span>
+              </label>
+              <label class="form-field">
+                <span class="form-label">温度 · 高阈值 (℃)</span>
+                <input type="number" id="s-th-temp-high" min="-30" max="200" step="0.1" value="60"/>
+                <span class="form-unit">℃</span>
+              </label>
+              <label class="form-field">
+                <span class="form-label">CO 一氧化碳 · 高阈值 (ppm)</span>
+                <input type="number" id="s-th-co-high" min="0" max="2000" step="1" value="50"/>
+                <span class="form-unit">ppm</span>
+              </label>
+              <label class="form-field">
+                <span class="form-label">持续超阈值才告警 (秒)<small>防瞬时抖动误报</small></span>
+                <input type="number" id="s-th-duration" min="0" max="3600" step="1" value="10"/>
+                <span class="form-unit">秒</span>
+              </label>
+              <label class="form-field">
+                <span class="form-label">连续恢复多少秒解除 (秒)</span>
+                <input type="number" id="s-th-recovery" min="0" max="3600" step="1" value="30"/>
+                <span class="form-unit">秒</span>
+              </label>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===== Tab 2: 通知设置 ===== -->
+        <section class="tab-panel" id="tab-notify" role="tabpanel" hidden>
+          <div class="section-card">
+            <div class="section-title">🔔 通知通道</div>
+            <p class="section-hint">分别设置"预警级"和"危险级"的推送通道；至少保留一个通道开启，否则会触发告警但无通知。</p>
+            <div class="toggle-group">
+              <div class="toggle-row">
+                <div>
+                  <div class="toggle-title">📱 APP 推送</div>
+                  <div class="toggle-desc">通过移动端 APP 推送告警，实时性高</div>
+                </div>
+                <label class="switch"><input type="checkbox" id="s-n-app" checked/><span class="slider"></span></label>
+              </div>
+              <div class="toggle-row">
+                <div>
+                  <div class="toggle-title">💬 短信通知</div>
+                  <div class="toggle-desc">向配置的手机号发送告警短信（需接入短信网关）</div>
+                </div>
+                <label class="switch"><input type="checkbox" id="s-n-sms"/><span class="slider"></span></label>
+              </div>
+              <div class="toggle-row">
+                <div>
+                  <div class="toggle-title">📧 邮件通知</div>
+                  <div class="toggle-desc">向邮箱发送告警与详情附件</div>
+                </div>
+                <label class="switch"><input type="checkbox" id="s-n-email" checked/><span class="slider"></span></label>
+              </div>
+              <div class="toggle-row">
+                <div>
+                  <div class="toggle-title">📞 语音电话（仅危险级）</div>
+                  <div class="toggle-desc">对高危险告警发起电话语音提醒（需接入语音网关）</div>
+                </div>
+                <label class="switch"><input type="checkbox" id="s-n-voice"/><span class="slider"></span></label>
+              </div>
+              <div class="toggle-row">
+                <div>
+                  <div class="toggle-title">🔊 大屏声光提醒</div>
+                  <div class="toggle-desc">大屏告警弹窗 + 声音播放</div>
+                </div>
+                <label class="switch"><input type="checkbox" id="s-n-screen" checked/><span class="slider"></span></label>
+              </div>
+            </div>
+          </div>
+
+          <div class="section-card">
+            <div class="section-title">📋 通知对象与策略</div>
+            <div class="form-grid">
+              <label class="form-field full">
+                <span class="form-label">默认通知对象 (手机号 / 邮箱，逗号分隔)</span>
+                <textarea id="s-n-targets" rows="2" placeholder="13800000000, security@example.com"></textarea>
+              </label>
+              <label class="form-field">
+                <span class="form-label">通知超时未响应时间 (秒)</span>
+                <input type="number" id="s-n-timeout" min="60" max="3600" step="10" value="300"/>
+                <span class="form-unit">秒</span>
+              </label>
+              <label class="form-field">
+                <span class="form-label">超时后升级联系 (手机号 / 邮箱)</span>
+                <input type="text" id="s-n-escalation" placeholder="13900000000, manager@example.com"/>
+              </label>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===== Tab 3: 联动策略 ===== -->
+        <section class="tab-panel" id="tab-linkage" role="tabpanel" hidden>
+          <div class="section-card">
+            <div class="section-title">🔗 自动联动配置</div>
+            <p class="section-hint">当告警触发时自动执行以下联动设备动作；可按告警等级选择触发级别。</p>
+            <div class="form-grid">
+              <label class="form-field">
+                <span class="form-label">声光报警器 · 触发级别</span>
+                <select id="s-l-sound">
+                  <option value="none">不自动触发</option>
+                  <option value="low">预警级</option>
+                  <option value="high" selected>危险级</option>
+                  <option value="all">任意告警</option>
+                </select>
+              </label>
+              <label class="form-field">
+                <span class="form-label">排风扇 · 触发级别</span>
+                <select id="s-l-vent">
+                  <option value="none">不自动触发</option>
+                  <option value="low">预警级</option>
+                  <option value="high" selected>危险级</option>
+                  <option value="all">任意告警</option>
+                </select>
+              </label>
+              <label class="form-field">
+                <span class="form-label">燃气电磁阀 · 触发级别</span>
+                <select id="s-l-valve">
+                  <option value="none" selected>不自动触发</option>
+                  <option value="low">预警级</option>
+                  <option value="high">危险级</option>
+                  <option value="all">任意告警</option>
+                </select>
+              </label>
+              <label class="form-field">
+                <span class="form-label">应急照明 · 触发级别</span>
+                <select id="s-l-light">
+                  <option value="none">不自动触发</option>
+                  <option value="low" selected>预警级</option>
+                  <option value="high">危险级</option>
+                  <option value="all">任意告警</option>
+                </select>
+              </label>
+              <label class="form-field full">
+                <span class="form-label">紧急广播默认模板</span>
+                <textarea id="s-l-broadcast" rows="3" placeholder="例如：【紧急通知】您所在区域烟雾浓度超标，请立即有序撤离，保持冷静。">【智慧烟感】{$area} 区域检测到烟雾浓度超标，请 {$owner} 立即检查并有序撤离。</textarea>
+              </label>
+              <label class="form-field">
+                <span class="form-label">联动动作间隔 (秒)<small>避免重复触发</small></span>
+                <input type="number" id="s-l-cooldown" min="0" max="3600" step="5" value="120"/>
+                <span class="form-unit">秒</span>
+              </label>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===== Tab 4: 账号安全 ===== -->
+        <section class="tab-panel" id="tab-account" role="tabpanel" hidden>
+          <div class="section-card">
+            <div class="section-title">🔐 修改登录密码</div>
+            <div class="form-grid">
+              <label class="form-field full">
+                <span class="form-label">当前密码</span>
+                <input type="password" id="s-a-old" autocomplete="current-password" placeholder="请输入当前登录密码"/>
+              </label>
+              <label class="form-field full">
+                <span class="form-label">新密码 <small>至少 6 位，建议包含数字+字母</small></span>
+                <input type="password" id="s-a-new" autocomplete="new-password" placeholder="请输入新密码"/>
+              </label>
+              <label class="form-field full">
+                <span class="form-label">确认新密码</span>
+                <input type="password" id="s-a-new2" autocomplete="new-password" placeholder="再次输入新密码"/>
+              </label>
+            </div>
+            <div class="btn-row">
+              <button class="btn btn-primary" id="s-a-submit">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                修改密码
+              </button>
+            </div>
+          </div>
+
+          <div class="section-card">
+            <div class="section-title">👤 会话与会话安全</div>
+            <div class="toggle-group">
+              <div class="toggle-row">
+                <div>
+                  <div class="toggle-title">🔒 自动登录有效期</div>
+                  <div class="toggle-desc">超过指定时长未活动需重新登录（仅影响当前浏览器会话）</div>
+                </div>
+                <select id="s-a-session" style="width:160px;">
+                  <option value="0">关闭自动登录</option>
+                  <option value="3600">1 小时</option>
+                  <option value="7200" selected>2 小时</option>
+                  <option value="86400">1 天</option>
+                  <option value="604800">7 天</option>
+                </select>
+              </div>
+              <div class="toggle-row">
+                <div>
+                  <div class="toggle-title">💾 记住账号</div>
+                  <div class="toggle-desc">仅在本地保存账号名，不保存密码</div>
+                </div>
+                <label class="switch"><input type="checkbox" id="s-a-remember" checked/><span class="slider"></span></label>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===== Tab 5: 系统接入 ===== -->
+        <section class="tab-panel" id="tab-integration" role="tabpanel" hidden>
+          <div class="section-card">
+            <div class="section-title">🌐 接入参数</div>
+            <p class="section-hint">配置前端调用的后端 API、MQTT Broker 和大模型服务地址；修改后刷新页面生效。</p>
+            <div class="form-grid">
+              <label class="form-field full">
+                <span class="form-label">后端 API Base URL</span>
+                <input type="text" id="s-i-api" placeholder="https://smoke-api.example.com"/>
+              </label>
+              <label class="form-field full">
+                <span class="form-label">MQTT Broker 地址 (ws/wss)</span>
+                <input type="text" id="s-i-mqtt" placeholder="ws://mqtt.example.com:8083/mqtt"/>
+              </label>
+              <label class="form-field full">
+                <span class="form-label">AI 大模型 Base URL (SmartJavaAI)</span>
+                <input type="text" id="s-i-ai" placeholder="https://smart-java-ai.example.com/api/app"/>
+              </label>
+              <label class="form-field full">
+                <span class="form-label">AI 助手调用令牌 (Token)<small>不支持明文回显，输入表示修改</small></span>
+                <input type="password" id="s-i-token" placeholder="留空表示保持不变"/>
+              </label>
+            </div>
+          </div>
+
+          <div class="section-card">
+            <div class="section-title">🧪 连接测试</div>
+            <div class="btn-row">
+              <button class="btn btn-ghost" id="s-i-test-api">测试 API 连通性</button>
+              <button class="btn btn-ghost" id="s-i-test-mqtt">测试 MQTT 连接</button>
+              <button class="btn btn-ghost" id="s-i-test-ai">测试 AI 助手</button>
+            </div>
+            <div class="test-result" id="s-i-result" hidden></div>
+          </div>
+        </section>
+
+        <!-- ===== Tab 6: 存储与缓存 ===== -->
+        <section class="tab-panel" id="tab-storage" role="tabpanel" hidden>
+          <div class="section-card">
+            <div class="section-title">💾 本地存储使用情况</div>
+            <div class="storage-bar">
+              <div class="storage-bar-used" id="s-s-bar"></div>
+            </div>
+            <div class="storage-meta" id="s-s-meta">已使用：计算中…</div>
+          </div>
+
+          <div class="section-card">
+            <div class="section-title">🧹 缓存与清理</div>
+            <div class="toggle-group">
+              <div class="toggle-row">
+                <div>
+                  <div class="toggle-title">仅清理界面状态缓存</div>
+                  <div class="toggle-desc">保留登录态与已保存设置</div>
+                </div>
+                <button class="btn btn-ghost" id="s-s-clean-ui">清理 UI 缓存</button>
+              </div>
+              <div class="toggle-row">
+                <div>
+                  <div class="toggle-title">清理除登录态外的全部本地存储</div>
+                  <div class="toggle-desc">含界面状态、图表配置、最近筛选条件等</div>
+                </div>
+                <button class="btn btn-warn" id="s-s-clean-app">清理应用缓存</button>
+              </div>
+              <div class="toggle-row">
+                <div>
+                  <div class="toggle-title">重置所有配置为默认值</div>
+                  <div class="toggle-desc">将恢复默认阈值/通知/联动等（不可恢复）</div>
+                </div>
+                <button class="btn btn-danger" id="s-s-reset-all">恢复默认设置</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="section-card">
+            <div class="section-title">📦 配置导入 / 导出</div>
+            <div class="btn-row">
+              <button class="btn btn-ghost" id="s-s-export">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                导出配置为 JSON
+              </button>
+              <button class="btn btn-ghost" id="s-s-import-btn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                从文件导入
+              </button>
+              <input type="file" id="s-s-import-file" accept="application/json" hidden/>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===== Tab 7: 社区管理（系统管理员） ===== -->
+        <section class="tab-panel" id="tab-community" role="tabpanel" hidden>
+          <div class="section-card">
+            <div class="section-head-row">
+              <div>
+                <div class="section-title">🏘️ 社区管理</div>
+                <p class="section-hint">系统管理员维护小区信息与指定负责人；小区管理员仅可查看，不可修改。</p>
+              </div>
+              <div>
+                <input id="s-c-search" class="ghost-input" placeholder="🔍 搜索社区名…" style="width:180px;"/>
+                <button class="btn btn-primary" id="s-c-add">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  新建社区
+                </button>
+              </div>
+            </div>
+            <div class="adm-table-wrap">
+              <table class="adm-table" id="s-c-table">
+                <thead>
+                  <tr>
+                    <th>社区名</th>
+                    <th>地址</th>
+                    <th>负责人（小区管理员）</th>
+                    <th>创建时间</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody id="s-c-tbody">
+                  <tr><td colspan="5" class="adm-empty">加载中…</td></tr>
+                </tbody>
+              </table>
+              <div class="adm-pager" id="s-c-pager"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===== Tab 8: 用户管理与注册审核（系统管理员 + 小区管理员） ===== -->
+        <section class="tab-panel" id="tab-user-audit" role="tabpanel" hidden>
+          <div class="section-card">
+            <div class="section-head-row">
+              <div>
+                <div class="section-title">👥 用户管理 · 注册审核</div>
+                <p class="section-hint">待审核用户高亮显示；系统管理员可管理全部用户，小区管理员仅管理本小区。</p>
+              </div>
+              <div id="s-u-filter">
+                <select id="s-u-filter-status" class="ghost-input" style="width:120px;">
+                  <option value="">全部状态</option>
+                  <option value="PENDING" selected>待审核</option>
+                  <option value="ACTIVE">正常</option>
+                  <option value="DISABLED">已禁用</option>
+                </select>
+                <select id="s-u-filter-role" class="ghost-input" style="width:120px;">
+                  <option value="">全部角色</option>
+                  <option value="RESIDENT">居民</option>
+                  <option value="COMMUNITY_ADMIN">小区管理员</option>
+                  <option value="FIREFIGHTER">消防员</option>
+                  <option value="SYSTEM_ADMIN">系统管理员</option>
+                </select>
+                <input id="s-u-search" class="ghost-input" placeholder="🔍 账号/姓名/手机…" style="width:180px;"/>
+                <button class="btn btn-primary" id="s-u-add">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  创建用户
+                </button>
+              </div>
+            </div>
+            <div class="adm-table-wrap">
+              <table class="adm-table" id="s-u-table">
+                <thead>
+                  <tr>
+                    <th>账号</th>
+                    <th>角色</th>
+                    <th>小区</th>
+                    <th>实名 / 电话</th>
+                    <th>状态</th>
+                    <th>注册时间</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody id="s-u-tbody">
+                  <tr><td colspan="7" class="adm-empty">加载中…</td></tr>
+                </tbody>
+              </table>
+              <div class="adm-pager" id="s-u-pager"></div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="modal-footer">
+        <div class="save-hint" id="settings-save-hint"></div>
+        <div class="btn-row">
+          <button class="btn btn-ghost" onclick="UI.Modal.close('settings-modal')">取消</button>
+          <button class="btn btn-primary" id="settings-save-all">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            保存设置
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =======================================================
+        JS 脚本（严格按依赖顺序加载）
+       ======================================================= -->
+  <!-- Utils -->
+  <script src="assets/js/utils/date.js?v=20260920"></script>
+  <script src="assets/js/utils/dom.js?v=20260920"></script>
+  <!-- API Client -->
+  <script src="assets/js/api/client.js?v=20260912"></script>
+  <!-- WebSocket 实时推送（STOMP）库，失败时 ws.js 会自动降级，不影响其他功能 -->
+  <script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@6.1.2/bundles/stomp.umd.js"></script>
+  <script src="assets/js/ws.js?v=20260913"></script>
+  <!-- Components -->
+  <script src="assets/js/components/interactions.js?v=20260920"></script>
+  <script src="assets/js/components/auth.js?v=20260920"></script>
+  <script src="assets/js/components/header.js?v=20260824"></script>
+  <script src="assets/js/components/overview.js?v=20260824"></script>
+  <script src="assets/js/components/chart.js?v=20260828"></script>
+  <script src="assets/js/components/alerts.js?v=20260913"></script>
+  <script src="assets/js/components/review.js?v=20260824"></script>
+  <script src="assets/js/components/device-mgr.js?v=20260825"></script>
+  <script src="assets/js/components/mailbox.js?v=20260913"></script>
+  <script src="assets/js/components/broadcast.js?v=20260824"></script>
+  <script src="assets/js/components/architecture.js?v=20260824"></script>
+  <script src="assets/js/components/mqtt.js?v=20260824"></script>
+  <script src="assets/js/components/settings.js?v=20260912"></script>
+  <script src="assets/js/components/role-guard.js?v=20260912"></script>
+  <script src="assets/js/components/trend-modal.js?v=20260913"></script>
+  <!-- 入口：先路由守卫再启动组件 -->
+  <script>
+    // 管理大屏只允许管理员访问；未登录自动跳登录页
+    window.Auth.requireRole('admin');
+  </script>
+  <script src="assets/js/main.js?v=20260913"></script>
+</body>
+</html>
