@@ -50,6 +50,13 @@ public class UsersController {
         return Result.success(usersService.login(request));
     }
 
+    /** 忘记密码：账号 + 绑定手机号校验后重置（无需登录态） */
+    @PostMapping("/reset-password")
+    public Result<String> resetPasswordByPhone(@RequestBody Map<String, String> body) {
+        usersService.resetPasswordByPhone(body.get("username"), body.get("phone"), body.get("newPassword"));
+        return Result.success("密码重置成功");
+    }
+
     @RequireRole({Role.SYSTEM_ADMIN, Role.COMMUNITY_ADMIN})
     @GetMapping
     public Result<PageResult<UserVO>> list(@RequestParam(defaultValue = "1") int page,

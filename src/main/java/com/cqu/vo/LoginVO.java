@@ -18,4 +18,9 @@ public class LoginVO {
     private String userId;
     private String username;
     private String role;
+    private String realName;
+    private String phone;
+    private Long communityId;
+    private String communityName;
+    private String status;
 }

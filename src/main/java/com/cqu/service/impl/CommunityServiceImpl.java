@@ -143,6 +143,12 @@ public class CommunityServiceImpl extends ServiceImpl<CommunityMapper, Community
         if (admin == null) {
             throw new BusinessException("负责人用户不存在");
         }
+        // 居民自动升级为小区管理员（方案B：前端可能未成功调用角色提升接口，这里兜底）
+        if (Role.RESIDENT.name().equals(admin.getRole())) {
+            admin.setRole(Role.COMMUNITY_ADMIN.name());
+            usersMapper.updateById(admin);
+            log.info("setAdmin 自动将用户 {}({}) 从 RESIDENT 升级为 COMMUNITY_ADMIN", admin.getUsername(), adminUserId);
+        }
         if (!Role.COMMUNITY_ADMIN.name().equals(admin.getRole())) {
             throw new BusinessException("负责人必须是小区管理员角色");
         }

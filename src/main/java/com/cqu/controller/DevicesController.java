@@ -37,7 +37,7 @@ public class DevicesController {
     @Autowired
     private IUserDeviceService userDeviceService;
 
-    @RequireRole({Role.SYSTEM_ADMIN, Role.COMMUNITY_ADMIN, Role.RESIDENT})
+    @RequireRole({Role.SYSTEM_ADMIN, Role.COMMUNITY_ADMIN, Role.RESIDENT, Role.FIREFIGHTER})
     @GetMapping
     public Result<PageResult<DeviceVO>> list(@RequestParam(defaultValue = "1") int page,
                                              @RequestParam(defaultValue = "10") int pageSize,
@@ -53,7 +53,7 @@ public class DevicesController {
         return Result.success(devicesService.getStatistics());
     }
 
-    @RequireRole({Role.SYSTEM_ADMIN, Role.COMMUNITY_ADMIN, Role.RESIDENT})
+    @RequireRole({Role.SYSTEM_ADMIN, Role.COMMUNITY_ADMIN, Role.RESIDENT, Role.FIREFIGHTER})
     @GetMapping("/{id}")
     public Result<DeviceDetailVO> detail(@PathVariable Long id) {
         return Result.success(devicesService.getDeviceDetail(id));

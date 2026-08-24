@@ -32,4 +32,7 @@ public interface IUsersService extends IService<Users> {
     void auditUser(Long id, boolean approve);
 
     void deleteUser(Long id);
+
+    /** 忘记密码：通过账号 + 绑定手机号校验后重置密码（无需登录态） */
+    void resetPasswordByPhone(String username, String phone, String newPassword);
 }

@@ -6,16 +6,17 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * 大模型对话请求
+ * 会话列表项
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ChatRequest {
+public class ChatSessionVO {
 
-    private String message;
+    private String id;
 
-    /** 会话 ID（多轮对话；为空则新建会话） */
-    private Long sessionId;
+    private String title;
+
+    private String updatedAt;
 }

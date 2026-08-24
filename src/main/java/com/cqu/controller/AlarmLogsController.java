@@ -57,7 +57,7 @@ public class AlarmLogsController {
         return Result.success("处理成功");
     }
 
-    @RequireRole({Role.SYSTEM_ADMIN, Role.COMMUNITY_ADMIN})
+    @RequireRole({Role.SYSTEM_ADMIN, Role.COMMUNITY_ADMIN, Role.FIREFIGHTER})
     @PutMapping("/{id}/acknowledge")
     public Result<String> acknowledge(@PathVariable Long id) {
         alarmLogsService.acknowledgeAlarm(id);

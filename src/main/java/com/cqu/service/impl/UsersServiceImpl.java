@@ -67,21 +67,36 @@ public class UsersServiceImpl extends ServiceImpl<UsersMapper, Users> implements
         Users user = new Users();
         user.setUsername(request.getUsername());
         user.setPassword(BCrypt.hashpw(request.getPassword()));
-        // 注册强制为居民，忽略前端传入的 role，杜绝越权注册
-        user.setRole(Role.RESIDENT.name());
+        // 注册角色白名单：仅允许 RESIDENT / COMMUNITY_ADMIN，非法角色降级为 RESIDENT，防止越权注册
+        String registerRole = request.getRole();
+        if (registerRole == null || registerRole.isBlank()) {
+            registerRole = Role.RESIDENT.name();
+        } else {
+            registerRole = registerRole.trim().toUpperCase();
+        }
+        if (!Role.RESIDENT.name().equals(registerRole) && !Role.COMMUNITY_ADMIN.name().equals(registerRole)) {
+            log.warn("register 收到非法角色 {}，账号 {}，已降级为 RESIDENT", registerRole, request.getUsername());
+            registerRole = Role.RESIDENT.name();
+        }
+        user.setRole(registerRole);
         user.setCommunityId(request.getCommunityId());
         // 注册默认待审核
         user.setStatus("PENDING");
         user.setRealName(request.getRealName());
         user.setPhone(request.getPhone());
         this.save(user);
-        log.info("用户注册: username={}, communityId={}", request.getUsername(), request.getCommunityId());
+        log.info("用户注册: username={}, communityId={}, role={}", request.getUsername(), request.getCommunityId(), registerRole);
 
         // 待审核用户不发放 token，审核通过后登录
         return LoginVO.builder()
                 .userId(String.valueOf(user.getId()))
                 .username(user.getUsername())
                 .role(user.getRole())
+                .realName(user.getRealName())
+                .phone(user.getPhone())
+                .communityId(user.getCommunityId())
+                .communityName(resolveCommunityName(user.getCommunityId()))
+                .status(user.getStatus())
                 .build();
     }
 
@@ -320,6 +335,43 @@ public class UsersServiceImpl extends ServiceImpl<UsersMapper, Users> implements
                 .userId(String.valueOf(user.getId()))
                 .username(user.getUsername())
                 .role(user.getRole())
+                .realName(user.getRealName())
+                .phone(user.getPhone())
+                .communityId(user.getCommunityId())
+                .communityName(resolveCommunityName(user.getCommunityId()))
+                .status(user.getStatus())
                 .build();
+    }
+
+    /** 查询小区名称（供登录返回） */
+    private String resolveCommunityName(Long communityId) {
+        if (communityId == null) {
+            return null;
+        }
+        Community community = communityMapper.selectById(communityId);
+        return community != null ? community.getName() : null;
+    }
+
+    @Override
+    public void resetPasswordByPhone(String username, String phone, String newPassword) {
+        if (username == null || username.isBlank()) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "账号不能为空");
+        }
+        if (phone == null || phone.isBlank()) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "手机号不能为空");
+        }
+        if (newPassword == null || newPassword.isBlank()) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "新密码不能为空");
+        }
+        Users user = this.lambdaQuery().eq(Users::getUsername, username).one();
+        if (user == null) {
+            throw new BusinessException("账号不存在");
+        }
+        if (user.getPhone() == null || !user.getPhone().equals(phone)) {
+            throw new BusinessException("账号与绑定手机号不匹配");
+        }
+        user.setPassword(BCrypt.hashpw(newPassword));
+        this.updateById(user);
+        log.info("忘记密码重置: username={}, userId={}", username, user.getId());
     }
 }

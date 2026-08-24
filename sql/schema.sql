@@ -129,10 +129,35 @@ CREATE TABLE IF NOT EXISTS knowledge_chunks
     created_at TIMESTAMP    NOT NULL DEFAULT now()
 );
 COMMENT ON TABLE knowledge_chunks IS 'RAG 知识库 — 消防应急预案/疏散/设备维护知识向量';
--- 向量索引（先灌数据再建索引，否则 IVFFlat 无效）
--- CREATE INDEX IF NOT EXISTS idx_knowledge_embedding ON knowledge_chunks USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+-- HNSW 向量索引（pgvector >= 0.5 支持，无需预先灌数据即可建索引，查询更快）
+CREATE INDEX IF NOT EXISTS idx_knowledge_embedding ON knowledge_chunks USING hnsw (embedding vector_cosine_ops);
 
--- 8. 小区表（负责人机制）
+-- 8. RAG 多轮对话会话表
+CREATE TABLE IF NOT EXISTS chat_session
+(
+    id         BIGSERIAL PRIMARY KEY,
+    user_id    BIGINT,                                  -- 归属用户（可空）
+    title      VARCHAR(256),                            -- 会话标题（首条消息摘要）
+    created_at TIMESTAMP NOT NULL DEFAULT now(),
+    updated_at TIMESTAMP NOT NULL DEFAULT now()
+);
+COMMENT ON TABLE chat_session IS 'RAG 多轮对话会话';
+CREATE INDEX IF NOT EXISTS idx_chat_session_user ON chat_session (user_id, updated_at DESC);
+
+-- 9. RAG 多轮对话消息表
+CREATE TABLE IF NOT EXISTS chat_message
+(
+    id         BIGSERIAL PRIMARY KEY,
+    session_id BIGINT       NOT NULL,
+    role       VARCHAR(16)  NOT NULL, -- user | assistant
+    content    TEXT         NOT NULL,
+    sources    TEXT,                   -- 引用来源 JSON 数组（仅 assistant 消息）
+    created_at TIMESTAMP    NOT NULL DEFAULT now()
+);
+COMMENT ON TABLE chat_message IS 'RAG 多轮对话消息';
+CREATE INDEX IF NOT EXISTS idx_chat_message_session ON chat_message (session_id, id);
+
+-- 10. 小区表（负责人机制）
 CREATE TABLE IF NOT EXISTS community
 (
     id            BIGSERIAL PRIMARY KEY,
@@ -156,3 +181,21 @@ CREATE TABLE IF NOT EXISTS user_device
 COMMENT ON TABLE user_device IS '住户与其家中烟感设备的绑定关系表（用于告警重点提示）';
 CREATE INDEX IF NOT EXISTS idx_user_device_user ON user_device (user_id);
 CREATE INDEX IF NOT EXISTS idx_user_device_device ON user_device (device_id);
+
+-- 站内消息表（居民-管理员双向消息）
+CREATE TABLE IF NOT EXISTS user_message
+(
+    id              BIGSERIAL PRIMARY KEY,
+    sender_user_id  BIGINT      NOT NULL,   -- 发送者用户 ID
+    sender_username VARCHAR(64),            -- 发送者用户名（冗余，便于展示）
+    community_id    BIGINT,                 -- 所属小区
+    type            VARCHAR(32) DEFAULT 'OTHER',
+    content         TEXT,
+    status          VARCHAR(16) DEFAULT 'UNREAD',
+    reply_to_id     BIGINT,                 -- 回复的原消息 ID（管理员回复居民时指向原消息）
+    sender_role     VARCHAR(16) DEFAULT 'RESIDENT', -- RESIDENT=居民发, ADMIN=管理员回复
+    created_at      TIMESTAMP   NOT NULL DEFAULT now()
+);
+COMMENT ON TABLE user_message IS '站内消息（居民-管理员双向消息）';
+CREATE INDEX IF NOT EXISTS idx_user_message_sender ON user_message (sender_user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_user_message_community ON user_message (community_id, created_at DESC);
