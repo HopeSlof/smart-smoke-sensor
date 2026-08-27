@@ -1,6 +1,6 @@
 # 智慧烟感管理平台 — API 接口文档
 
-> 本文档由后端代码梳理生成，供前端对接使用。版本：前端 Web 面板 + 站内消息 + 忘记密码 + 消防员角色完整支持。
+> 本文档由后端代码梳理生成，供前端对接使用。版本：v2.0 — **含 AI 视觉复核、RAG 智能问答（已启用）、烟感-摄像头一对一绑定**、站内消息、忘记密码、消防员角色完整支持。
 
 ## 通用约定
 
@@ -249,7 +249,7 @@
 |deviceType|string|否|类型|
 |onlineStatus|string|否|`ONLINE` / `OFFLINE`|
 
-- **返回** `PageResult<DeviceVO>`：`id`、`deviceName`、`deviceSn`、`deviceType`、`communityId`、`location`、`onlineStatus`、`batteryLevel`、`lastHeartbeatTime`、`createdAt`
+- **返回** `PageResult<DeviceVO>`：`id`、`deviceName`、`deviceSn`、`deviceType`、`communityId`、`location`、`onlineStatus`、`batteryLevel`、`boundCameraId`（**绑定的专属摄像头 ID，一对一关系**，可空）、`lastHeartbeatTime`、`createdAt`
 
 ### 3.2 设备概览统计
 
@@ -272,9 +272,14 @@
 |-|-|-|-|
 |deviceName|string|是|设备名称|
 |deviceSn|string|是|序列号（唯一）|
-|deviceType|string|否|默认 `SMOKE_SENSOR`|
+|deviceType|string|否|默认 `SMOKE_SENSOR`。可选：`SMOKE_SENSOR` / `CAMERA` / `BROADCAST` / `SPRINKLER` / `EXHAUST_FAN`|
 |communityId|long|否|归属小区（小区管理员忽略）|
 |location|string|否|安装位置|
+
+- **重要行为（后端自动处理）**：
+  - 当 `deviceType = SMOKE_SENSOR`（烟感）时，后端 `@Transactional` **自动创建同位置的专属摄像头（CAMERA）并绑定**，确保烟感与摄像头一对一。新增烟感后查询设备列表会返回两条记录（烟感 + 摄像头），烟感的 `boundCameraId` 指向摄像头。
+  - 删除烟感时**级联删除绑定的摄像头**（同事务，不会产生孤儿数据）。
+  - 更新烟感名称/位置时，**自动同步到绑定的摄像头**。
 
 ### 3.5 编辑设备
 
@@ -308,6 +313,22 @@
 
 - **URL**：`POST /devices/self-check`，认证不需要
 - **请求体**：`{"deviceSn": "SN001", "batteryLevel": 10, "sensorFault": false}`
+
+### 3.11 绑定摄像头到烟感（一对一）
+
+- **URL**：`PUT /devices/{smokeDeviceId}/bind-camera/{cameraDeviceId}`
+- **角色**：`SYSTEM_ADMIN` / `COMMUNITY_ADMIN`
+- **说明**：
+  - 绑定是**一对一**关系，一个摄像头只能被一个烟感绑定（已被绑的摄像头会返回"该摄像头已被其他烟感绑定"）。
+  - `smokeDeviceId` 必须是 `SMOKE_SENSOR` 类型，`cameraDeviceId` 必须是 `CAMERA` 类型。
+  - 小区管理员只能在**本小区内**绑定（`checkCommunityAccess` 校验），跨小区会被拒绝。
+  - 如果烟感已有绑定的摄像头，会先**解绑旧的再绑定新的**（替换关系）。
+
+### 3.12 解绑烟感的摄像头
+
+- **URL**：`DELETE /devices/{smokeDeviceId}/bind-camera`
+- **角色**：`SYSTEM_ADMIN` / `COMMUNITY_ADMIN`
+- **说明**：小区管理员只能解绑本小区烟感的摄像头。解绑不会删除摄像头，只是解除绑定关系。
 
 ---
 
@@ -455,23 +476,166 @@
 
 ---
 
-## 9. RAG 问答 — `/knowledge-chunks`
+## 9. RAG 消防知识问答 — `/knowledge-chunks`
 
-### 8.1 大模型问答
+> **已启用**：后端已接入 SiliconFlow 大模型（Qwen2.5-7B-Instruct + BAAI/bge-m3 embedding），6 篇消防知识已向量化入库。异常时自动降级为纯 LLM 回答。
+
+### 9.1 智能问答（支持多轮会话）
 
 - **URL**：`POST /knowledge-chunks/chat`
-- **请求体**：`{"message": "烟感报警后应该怎么疏散人员？"}`
-- **返回**：`data = "大模型回复文本"`
+- **角色**：所有已登录用户
+- **请求体 `ChatRequest`**：
 
-### 8.2 知识库导入
+|字段|类型|必填|说明|
+|-|-|-|-|
+|message|string|是|用户问题|
+|sessionId|long|否|多轮续接时传上一次返回的 sessionId；不传则新建会话|
+
+```json
+{"message": "油锅起火怎么办？"}
+// 或多轮续接：
+{"message": "报警器装在哪里？", "sessionId": 2092889598818066433}
+```
+
+- **返回 `ChatResponse`**：
+
+|字段|类型|说明|
+|-|-|-|
+|answer|string|大模型生成的回答文本|
+|sessionId|long|会话 ID（多轮对话续接用；首次提问返回新 ID，续接时返回传入的 ID）|
+|sources|`List<ChatSource>`|命中的知识来源片段（前端可展示为引用）|
+
+ChatSource 字段：`title`（知识标题）、`content`（片段内容）
+
+```json
+{
+  "code": 200,
+  "data": {
+    "answer": "油锅起火时应立即盖上锅盖隔绝空气...",
+    "sessionId": 2092889598818066433,
+    "sources": [
+      {"title": "家庭火灾处置指南", "content": "油锅起火是厨房常见火情..."},
+      {"title": "灭火基本方法", "content": "窒息法：用锅盖或湿布覆盖..."},
+      {"title": "智能烟感联动说明", "content": "当烟感检测到烟雾浓度超标..."}
+    ]
+  }
+}
+```
+
+### 9.2 当前用户会话列表
+
+- **URL**：`GET /knowledge-chunks/sessions`
+- **角色**：所有已登录用户（只能查自己的会话）
+- **返回** `List<ChatSessionVO>`：
+
+|字段|类型|说明|
+|-|-|-|
+|id|string|会话 ID|
+|title|string|会话标题（首问自动截取）|
+|updatedAt|string|最后更新时间|
+
+### 9.3 会话历史消息
+
+- **URL**：`GET /knowledge-chunks/sessions/{sessionId}/messages`
+- **角色**：所有已登录用户（只能查自己的会话，否则 403）
+- **返回** `List<ChatMessageVO>`：
+
+|字段|类型|说明|
+|-|-|-|
+|role|string|`USER` / `ASSISTANT`|
+|content|string|消息内容|
+|sources|`List<ChatSource>`|AI 回复的引用来源（USER 消息该字段为 null）|
+|createdAt|string|创建时间|
+
+### 9.4 删除会话
+
+- **URL**：`DELETE /knowledge-chunks/sessions/{sessionId}`
+- **角色**：所有已登录用户（只能删自己的会话，否则 403）
+- **返回**：`data = null`
+
+### 9.5 知识导入（管理员）
 
 - **URL**：`POST /knowledge-chunks/import`
 - **角色**：`SYSTEM_ADMIN`
-- **请求体**：`{"documents": [{"title": "火灾应急预案", "content": "..."}]}`
+- **请求体 `KnowledgeImportRequest`**：
+
+|字段|类型|必填|说明|
+|-|-|-|-|
+|documents|`List<Doc>`|是|知识文档列表|
+
+Doc 字段：
+
+|字段|类型|必填|说明|
+|-|-|-|-|
+|title|string|是|知识标题|
+|content|string|是|知识正文（后端自动切块：chunkSize=500, overlap=50，每块独立向量化）|
+
+```json
+{
+  "documents": [
+    {"title": "火灾应急预案", "content": "发生火灾时应保持冷静..."},
+    {"title": "灭火器使用方法", "content": "干粉灭火器适用于..." }
+  ]
+}
+```
+
+- **返回**：`data = "成功导入 12 条知识"`（数字为切块数）
 
 ---
 
-## 9. WebSocket 实时推送 — `/ws`
+## 10. AI 视觉复核（明火检测） — `/ai-review`
+
+> **已启用**：FIRE 级别告警自动触发 `@Async` 异步视觉复核（不阻塞主流程）。后端接入 SiliconFlow 视觉大模型（Qwen3-VL-8B-Instruct），摄像头查找用三级降级策略：优先绑定的专属摄像头 → 同小区在线摄像头 → 同小区任意摄像头。结果通过 WebSocket `/topic/ai-review` 实时推送。
+
+### 10.1 查询某告警的 AI 复核结果
+
+- **URL**：`GET /ai-review/{alarmLogId}`
+- **角色**：所有已登录用户（**数据权限校验**：小区管理员/普通用户只能查本小区告警的 AI 结果）
+- **返回** `AiReviewVO`：
+
+|字段|类型|说明|
+|-|-|-|
+|id|string|AI 复核记录 ID|
+|alarmLogId|string|关联的告警记录 ID|
+|smokeDeviceId|string|烟感设备 ID|
+|cameraDeviceId|string|使用的摄像头设备 ID|
+|cameraDeviceName|string|摄像头设备名称|
+|imageUrl|string|AI 复核使用的图片 URL|
+|aiResult|string|AI 判定结果：`FIRE`（确认火情）/ `NO_FIRE`（无火情）/ `UNCERTAIN`（不确定）|
+|confidence|string|置信度（0.0 - 1.0，如 "0.98"）|
+|aiDescription|string|AI 返回的自然语言描述|
+|status|string|复核状态：`PENDING`（进行中）/ `SUCCESS`（完成）/ `FAILED`（失败）|
+|reviewTime|string|复核完成时间|
+|errorMessage|string|失败时的错误信息|
+|createdAt|string|创建时间|
+
+- **返回为 null 的场景**：该告警尚未触发 AI 复核（如非 FIRE 级别的告警不会自动触发）。
+
+### 10.2 手动触发 / 重试 AI 复核
+
+- **URL**：`POST /ai-review/{alarmLogId}/retry`
+- **角色**：`SYSTEM_ADMIN` / `COMMUNITY_ADMIN`（小区管理员只能重试本小区告警）
+- **请求体**（可选）：
+
+|字段|类型|必填|说明|
+|-|-|-|-|
+|imageUrl|string|否|指定图片 URL 覆盖默认的告警关联截图；不传则用后端默认配置|
+
+```json
+{}
+// 或指定图片：
+{"imageUrl": "https://example.com/fire-snapshot.jpg"}
+```
+
+- **返回**：`data = null`（触发即返回，实际复核异步进行；前端通过 WebSocket `/topic/ai-review` 等待结果，或轮询 10.1 接口）
+
+### 10.3 自动触发时机
+
+后端在 `AlarmLogsServiceImpl.createAlarm()` 创建 **FIRE** 级别告警时，自动 `@Async` 异步调用 AI 复核，无需前端手动触发。
+
+---
+
+## 11. WebSocket 实时推送 — `/ws`
 
 - **连接**：`ws://localhost:8080/ws?token={jwt_token}`（STOMP over WebSocket）
 - **消息信封**：`{"type": "...", "timestamp": "...", "data": {...}}`
@@ -484,11 +648,12 @@
 |`/topic/community/{communityId}/alarms`|本小区居民/管理员|`ALARM_CREATED`|本小区告警（含离线/低电量/故障）|
 |`/topic/community/{communityId}/devices`|本小区管理员|`DEVICE_STATUS_CHANGED`|设备状态与自检|
 |`/topic/community/{communityId}/smoke`|本小区居民/管理员|`SMOKE_REPORTED`|烟雾读数|
+|`/topic/ai-review`|全部登录态|`AI_REVIEW_COMPLETED`|AI 视觉复核完成（含 aiResult + confidence + aiDescription）|
 |`/user/{userId}/queue/alerts`|单个住户|`ALARM_HIGHLIGHT`|绑定设备告警重点提示（定向推送）|
 
 ---
 
-## 11. MQTT 主题（硬件通信）
+## 12. MQTT 主题（硬件通信）
 
 |Topic|方向|QoS|说明|
 |-|-|-|-|

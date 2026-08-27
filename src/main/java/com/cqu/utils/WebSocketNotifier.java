@@ -19,6 +19,7 @@ public class WebSocketNotifier {
     public static final String TOPIC_DEVICE_ONLINE = "/topic/device-online";
     public static final String TOPIC_ALARMS = "/topic/alarms";
     public static final String TOPIC_ALARMS_FIRE = "/topic/alarms/fire";
+    public static final String TOPIC_AI_REVIEW = "/topic/ai-review";
 
     private final SimpMessagingTemplate messagingTemplate;
 
@@ -54,6 +55,11 @@ public class WebSocketNotifier {
     /** 火警跨小区广播 */
     public void pushFireAlarm(Object data) {
         send(TOPIC_ALARMS_FIRE, "ALARM_CREATED", data);
+    }
+
+    /** AI 视觉复核结果 */
+    public void pushAiReview(Object data) {
+        send(TOPIC_AI_REVIEW, "AI_REVIEW_RESULT", data);
     }
 
     /** 本小区告警推送 */

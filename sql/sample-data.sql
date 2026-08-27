@@ -44,15 +44,24 @@ INSERT INTO users (id, username, password, role, community_id, status, real_name
   (301, 'fire_chen', '$2a$10$bQxR.TzpVhPVamIS3FZ/VOHkJxVE00RgPaLxD2qWUshi3iS.UkjlG', 'FIREFIGHTER', NULL, 'ACTIVE', '陈刚', '13700000001'),
   (302, 'fire_lin',  '$2a$10$bQxR.TzpVhPVamIS3FZ/VOHkJxVE00RgPaLxD2qWUshi3iS.UkjlG', 'FIREFIGHTER', NULL, 'ACTIVE', '林涛', '13700000002');
 
--- 4. 设备
-INSERT INTO devices (id, device_name, device_sn, device_type, community_id, location, online_status, battery_level, last_heartbeat_time) VALUES
-  (11, '1栋1单元101室烟感', 'SN-C1-001', 'SMOKE_SENSOR', 1, '1栋1单元101室', 'ONLINE',  95, now() - interval '2 minutes'),
-  (12, '1栋2单元302室烟感', 'SN-C1-002', 'SMOKE_SENSOR', 1, '1栋2单元302室', 'ONLINE',  15, now() - interval '5 minutes'),
-  (13, '2栋1单元501室烟感', 'SN-C1-003', 'SMOKE_SENSOR', 1, '2栋1单元501室', 'ONLINE',  88, now() - interval '1 minutes'),
-  (14, 'A栋3单元201室烟感', 'SN-C2-001', 'SMOKE_SENSOR', 2, 'A栋3单元201室', 'ONLINE',  90, now() - interval '3 minutes'),
-  (15, 'B栋1单元402室烟感', 'SN-C2-002', 'SMOKE_SENSOR', 2, 'B栋1单元402室', 'OFFLINE', 70, now() - interval '2 hours'),
-  (16, '6栋2单元603室烟感', 'SN-C3-001', 'SMOKE_SENSOR', 3, '6栋2单元603室', 'ONLINE',  85, now() - interval '4 minutes'),
-  (17, '8栋1单元301室烟感', 'SN-C3-002', 'SMOKE_SENSOR', 3, '8栋1单元301室', 'ONLINE',  92, now() - interval '6 minutes');
+-- 4. 设备（烟感与摄像头一一绑定，AI 视觉复核时直接用绑定的摄像头）
+INSERT INTO devices (id, device_name, device_sn, device_type, community_id, location, online_status, bound_camera_id, battery_level, last_heartbeat_time) VALUES
+  -- 烟感设备（每个烟感绑定专属摄像头）
+  (11, '1栋1单元101室烟感', 'SN-C1-001', 'SMOKE_SENSOR', 1, '1栋1单元101室', 'ONLINE',  18, 95, now() - interval '2 minutes'),
+  (12, '1栋2单元302室烟感', 'SN-C1-002', 'SMOKE_SENSOR', 1, '1栋2单元302室', 'ONLINE',  19, 15, now() - interval '5 minutes'),
+  (13, '2栋1单元501室烟感', 'SN-C1-003', 'SMOKE_SENSOR', 1, '2栋1单元501室', 'ONLINE',  20, 88, now() - interval '1 minutes'),
+  (14, 'A栋3单元201室烟感', 'SN-C2-001', 'SMOKE_SENSOR', 2, 'A栋3单元201室', 'ONLINE',  21, 90, now() - interval '3 minutes'),
+  (15, 'B栋1单元402室烟感', 'SN-C2-002', 'SMOKE_SENSOR', 2, 'B栋1单元402室', 'OFFLINE', 22, 70, now() - interval '2 hours'),
+  (16, '6栋2单元603室烟感', 'SN-C3-001', 'SMOKE_SENSOR', 3, '6栋2单元603室', 'ONLINE',  23, 85, now() - interval '4 minutes'),
+  (17, '8栋1单元301室烟感', 'SN-C3-002', 'SMOKE_SENSOR', 3, '8栋1单元301室', 'ONLINE',  24, 92, now() - interval '6 minutes'),
+  -- 摄像头设备（每个烟感门口安装一个专属摄像头，一一绑定）
+  (18, '1栋1单元101室摄像头', 'SN-CAM-C1-001', 'CAMERA', 1, '1栋1单元101室门口', 'ONLINE',  NULL, 100, now() - interval '1 minutes'),
+  (19, '1栋2单元302室摄像头', 'SN-CAM-C1-002', 'CAMERA', 1, '1栋2单元302室门口', 'ONLINE',  NULL, 100, now() - interval '1 minutes'),
+  (20, '2栋1单元501室摄像头', 'SN-CAM-C1-003', 'CAMERA', 1, '2栋1单元501室门口', 'ONLINE',  NULL, 100, now() - interval '1 minutes'),
+  (21, 'A栋3单元201室摄像头', 'SN-CAM-C2-001', 'CAMERA', 2, 'A栋3单元201室门口', 'ONLINE',  NULL, 100, now() - interval '1 minutes'),
+  (22, 'B栋1单元402室摄像头', 'SN-CAM-C2-002', 'CAMERA', 2, 'B栋1单元402室门口', 'OFFLINE', NULL, 100, now() - interval '2 hours'),
+  (23, '6栋2单元603室摄像头', 'SN-CAM-C3-001', 'CAMERA', 3, '6栋2单元603室门口', 'ONLINE',  NULL, 100, now() - interval '1 minutes'),
+  (24, '8栋1单元301室摄像头', 'SN-CAM-C3-002', 'CAMERA', 3, '8栋1单元301室门口', 'ONLINE',  NULL, 100, now() - interval '1 minutes');
 
 -- 5. 居民-设备绑定
 INSERT INTO user_device (user_id, device_id) VALUES

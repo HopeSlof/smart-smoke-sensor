@@ -22,6 +22,7 @@ public class DeviceVO {
     private String location;
     private String onlineStatus;
     private Integer batteryLevel;
+    private Long boundCameraId;
     private String lastHeartbeatTime;
     private String createdAt;
 }

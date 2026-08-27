@@ -30,4 +30,10 @@ public interface IDevicesService extends IService<Devices> {
 
     /** 自检上报（电量 + 传感器故障） */
     void handleSelfCheck(String deviceSn, Integer batteryLevel, Boolean sensorFault);
+
+    /** 绑定摄像头到烟感设备 */
+    void bindCamera(Long smokeDeviceId, Long cameraDeviceId);
+
+    /** 解绑烟感设备的摄像头 */
+    void unbindCamera(Long smokeDeviceId);
 }

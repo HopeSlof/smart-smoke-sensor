@@ -16,6 +16,7 @@ import com.cqu.entity.UserDevice;
 import com.cqu.mapper.AlarmLogsMapper;
 import com.cqu.mapper.DevicesMapper;
 import com.cqu.mapper.UserDeviceMapper;
+import com.cqu.service.IAiReviewService;
 import com.cqu.service.IAlarmLogsService;
 import com.cqu.service.IControlLogsService;
 import com.cqu.utils.DataScope;
@@ -51,6 +52,9 @@ public class AlarmLogsServiceImpl extends ServiceImpl<AlarmLogsMapper, AlarmLogs
 
     @Autowired
     private WebSocketNotifier webSocketNotifier;
+
+    @Autowired
+    private IAiReviewService aiReviewService;
 
     @Override
     public PageResult<AlarmLogVO> pageAlarms(int page, int pageSize, Long deviceId,
@@ -240,6 +244,11 @@ public class AlarmLogsServiceImpl extends ServiceImpl<AlarmLogsMapper, AlarmLogs
         Devices device = devicesMapper.selectById(deviceId);
         if (device != null) deviceName = device.getDeviceName();
         routeAlarm(alarm, device, toVO(alarm, deviceName));
+
+        // FIRE 级别告警自动触发 AI 视觉复核
+        if (AlarmLevel.FIRE.name().equals(resolvedLevel)) {
+            aiReviewService.triggerReviewAsync(alarm.getId(), deviceId);
+        }
     }
 
     private void routeAlarm(AlarmLogs alarm, Devices device, AlarmLogVO vo) {

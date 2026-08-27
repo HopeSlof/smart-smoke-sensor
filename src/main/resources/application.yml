@@ -32,3 +32,10 @@ mqtt:
   client-id: smart-smoke-sensor-server
   username:
   password:
+
+# ==================== AI 视觉复核配置 ====================
+ai-review:
+  # 默认摄像头快照 URL（无真实摄像头时使用，可配置为测试火情图片）
+  default-snapshot-url:
+  # 视觉大模型名称（SiliconFlow 平台支持的视觉模型）
+  vision-model: Qwen/Qwen2-VL-72B-Instruct

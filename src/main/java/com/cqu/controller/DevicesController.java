@@ -94,6 +94,22 @@ public class DevicesController {
         return Result.success("解绑成功");
     }
 
+    /** 绑定摄像头到烟感设备 */
+    @RequireRole({Role.SYSTEM_ADMIN, Role.COMMUNITY_ADMIN})
+    @PutMapping("/{smokeDeviceId}/bind-camera/{cameraDeviceId}")
+    public Result<String> bindCamera(@PathVariable Long smokeDeviceId, @PathVariable Long cameraDeviceId) {
+        devicesService.bindCamera(smokeDeviceId, cameraDeviceId);
+        return Result.success("摄像头绑定成功");
+    }
+
+    /** 解绑烟感设备的摄像头 */
+    @RequireRole({Role.SYSTEM_ADMIN, Role.COMMUNITY_ADMIN})
+    @DeleteMapping("/{smokeDeviceId}/bind-camera")
+    public Result<String> unbindCamera(@PathVariable Long smokeDeviceId) {
+        devicesService.unbindCamera(smokeDeviceId);
+        return Result.success("摄像头解绑成功");
+    }
+
     /** 硬件心跳上报（HTTP 降级通道，不校验 JWT） */
     @PostMapping("/heartbeat")
     public Result<String> heartbeat(@RequestBody Map<String, Object> body) {

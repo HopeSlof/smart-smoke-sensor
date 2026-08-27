@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS devices
     community_id        BIGINT,                                 -- 归属小区（数据权限过滤）
     location            VARCHAR(256),                           -- 安装位置（如 1栋-2单元-301）
     online_status       VARCHAR(16)  NOT NULL DEFAULT 'OFFLINE', -- ONLINE | OFFLINE
+    bound_camera_id     BIGINT,                                 -- 绑定的摄像头 ID（烟感专属，AI 视觉复核用）
     battery_level       INT,                                    -- 电量百分比 0-100（烟感自检上报）
     last_heartbeat_time TIMESTAMP,
     created_at          TIMESTAMP    NOT NULL DEFAULT now()
@@ -199,3 +200,22 @@ CREATE TABLE IF NOT EXISTS user_message
 COMMENT ON TABLE user_message IS '站内消息（居民-管理员双向消息）';
 CREATE INDEX IF NOT EXISTS idx_user_message_sender ON user_message (sender_user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_user_message_community ON user_message (community_id, created_at DESC);
+
+-- 13. AI 视觉复核记录表
+CREATE TABLE IF NOT EXISTS ai_review_log
+(
+    id               BIGSERIAL PRIMARY KEY,
+    alarm_log_id     BIGINT      NOT NULL,       -- 关联告警记录
+    smoke_device_id  BIGINT,                     -- 触发告警的烟感设备
+    camera_device_id BIGINT,                     -- 复核用摄像头
+    image_url        TEXT,                        -- 送给 AI 分析的图片 URL
+    ai_result        VARCHAR(32),                 -- FIRE / NO_FIRE / UNCERTAIN
+    confidence       DOUBLE PRECISION,            -- 置信度 0.0-1.0
+    ai_description   TEXT,                        -- AI 分析描述
+    status           VARCHAR(16) DEFAULT 'PENDING', -- PENDING / SUCCESS / FAILED
+    error_message    TEXT,                         -- 失败时的错误信息
+    review_time      TIMESTAMP,                    -- AI 复核完成时间
+    created_at       TIMESTAMP   NOT NULL DEFAULT now()
+);
+COMMENT ON TABLE ai_review_log IS 'AI 视觉复核记录';
+CREATE INDEX IF NOT EXISTS idx_ai_review_alarm ON ai_review_log (alarm_log_id);

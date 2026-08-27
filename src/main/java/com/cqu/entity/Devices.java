@@ -41,6 +41,9 @@ public class Devices implements Serializable {
     /** 在线状态: ONLINE / OFFLINE */
     private String onlineStatus;
 
+    /** 绑定的摄像头 ID（烟感设备专属，用于 AI 视觉复核） */
+    private Long boundCameraId;
+
     /** 电量百分比 0-100 */
     private Integer batteryLevel;
 
