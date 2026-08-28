@@ -643,13 +643,14 @@ Doc 字段：
 |主题|订阅者|消息类型|触发时机|
 |-|-|-|-|
 |`/topic/smoke-readings`|全部|`SMOKE_REPORTED`|烟雾数据上报|
-|`/topic/device-online`|全部|`DEVICE_ONLINE_STATUS_CHANGED`|设备上线/离线|
+|`/topic/device-online`|全部|`DEVICE_ONLINE_STATUS_CHANGED`|设备上线/离线（心跳超时判定、上报刷新）|
+|`/topic/alarms`|全部|`ALARM_ESCALATED`|告警升级（定时任务 AlertEscalationTask 检测到超时未处理时）|
 |`/topic/alarms/fire`|全部角色|`ALARM_CREATED`|火警（跨小区广播）|
-|`/topic/community/{communityId}/alarms`|本小区居民/管理员|`ALARM_CREATED`|本小区告警（含离线/低电量/故障）|
-|`/topic/community/{communityId}/devices`|本小区管理员|`DEVICE_STATUS_CHANGED`|设备状态与自检|
-|`/topic/community/{communityId}/smoke`|本小区居民/管理员|`SMOKE_REPORTED`|烟雾读数|
-|`/topic/ai-review`|全部登录态|`AI_REVIEW_COMPLETED`|AI 视觉复核完成（含 aiResult + confidence + aiDescription）|
+|`/topic/community/{communityId}/alarms`|本小区居民/管理员|`ALARM_CREATED`|本小区非火警告警（离线/低电量/故障等）|
+|`/topic/ai-review`|全部登录态|`AI_REVIEW_RESULT`|AI 视觉复核完成（data 为 AiReviewVO，含 aiResult/confidence/aiDescription/status）|
 |`/user/{userId}/queue/alerts`|单个住户|`ALARM_HIGHLIGHT`|绑定设备告警重点提示（定向推送）|
+
+> 注意：`/topic/device-status`（`DEVICE_STATUS_CHANGED`）目前后端已定义但未启用推送，属于预留主题；`/topic/community/{id}/devices` 与 `/topic/community/{id}/smoke` 同样为预留，当前实际推送走全局主题。
 
 ---
 
