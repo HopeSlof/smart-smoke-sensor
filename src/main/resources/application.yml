@@ -39,3 +39,11 @@ ai-review:
   default-snapshot-url:
   # 视觉大模型名称（SiliconFlow 平台支持的视觉模型）
   vision-model: Qwen/Qwen2-VL-72B-Instruct
+  # 本机电脑摄像头截图（AI 分析现场图；失败自动降级为 default-snapshot-url 仿真模式）
+  camera-enabled: true
+  # 本机摄像头 dshow 设备名（在 secret 配置中按机器覆盖，查看: ffmpeg -list_devices true -f dshow -i dummy）
+  camera-name:
+  # ffmpeg 可执行文件路径
+  ffmpeg-path: ffmpeg
+  # 截图保存目录（通过 /images/ai-review/** 对外访问，前端可直接展示）
+  snapshot-dir: uploads/ai-review

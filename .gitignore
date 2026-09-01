@@ -27,6 +27,9 @@ logs/
 ### 敏感配置（不入库）###
 src/main/resources/application-secret.yml
 
+### 运行时生成（AI 视觉复核摄像头截图）###
+uploads/
+
 ### 前端（web-dashboard）###
 node_modules/
 dist/

@@ -24,7 +24,13 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.LocalDateTime;
+import java.util.Base64;
+import java.util.concurrent.TimeUnit;
 
 /**
  * AI 视觉复核服务实现
@@ -57,6 +63,22 @@ public class AiReviewServiceImpl implements IAiReviewService {
     @Value("${ai-review.vision-model:Qwen/Qwen2-VL-72B-Instruct}")
     private String visionModel;
 
+    /** 是否启用本机电脑摄像头截图（失败自动降级为默认快照图） */
+    @Value("${ai-review.camera-enabled:false}")
+    private boolean cameraEnabled;
+
+    /** 本机摄像头 dshow 设备名（如 USB2.0 HD UVC WebCam） */
+    @Value("${ai-review.camera-name:}")
+    private String cameraName;
+
+    /** ffmpeg 可执行文件路径（电脑摄像头截图用） */
+    @Value("${ai-review.ffmpeg-path:ffmpeg}")
+    private String ffmpegPath;
+
+    /** 本机截图保存目录（相对项目根，通过 /images/ai-review/** 对外访问） */
+    @Value("${ai-review.snapshot-dir:uploads/ai-review}")
+    private String snapshotDir;
+
     @Override
     @Async
     public void triggerReviewAsync(Long alarmLogId, Long smokeDeviceId) {
@@ -88,13 +110,11 @@ public class AiReviewServiceImpl implements IAiReviewService {
 
         // 查找同小区的摄像头
         Devices camera = findCamera(smokeDeviceId);
+        // 图片来源优先级：1.手动重试显式传入的 URL  2.本机电脑摄像头实时截图  3.配置的默认快照图（仿真）
         String effectiveImageUrl = imageUrl;
         if (effectiveImageUrl == null || effectiveImageUrl.isBlank()) {
-            if (camera != null) {
-                // 实际项目中这里应该调用摄像头 RTSP 快照接口
-                // 目前使用配置的默认图片
-                effectiveImageUrl = defaultSnapshotUrl;
-            } else {
+            effectiveImageUrl = tryCaptureFromCamera(alarmLogId);
+            if (effectiveImageUrl == null) {
                 effectiveImageUrl = defaultSnapshotUrl;
             }
         }
@@ -123,6 +143,66 @@ public class AiReviewServiceImpl implements IAiReviewService {
             return null;
         }
         return toVO(reviewLog);
+    }
+
+    /**
+     * 用本机电脑摄像头（ffmpeg dshow）拍一帧作为 AI 分析的现场图。
+     * <p>成功返回静态资源相对路径（/images/ai-review/xxx.jpg），失败返回 null（调用方降级为默认快照图）。</p>
+     */
+    private String tryCaptureFromCamera(Long alarmLogId) {
+        if (!cameraEnabled || cameraName == null || cameraName.isBlank()) {
+            return null;
+        }
+        try {
+            Path dir = Paths.get(snapshotDir);
+            Files.createDirectories(dir);
+            Path file = dir.resolve("review-" + alarmLogId + "-" + System.currentTimeMillis() + ".jpg");
+
+            ProcessBuilder pb = new ProcessBuilder(
+                    ffmpegPath,
+                    "-hide_banner", "-loglevel", "error",
+                    "-f", "dshow",
+                    "-i", "video=" + cameraName,
+                    "-frames:v", "1",
+                    "-q:v", "2",
+                    "-y",
+                    file.toAbsolutePath().toString());
+            pb.redirectErrorStream(true);
+            Process process = pb.start();
+            boolean finished = process.waitFor(20, TimeUnit.SECONDS);
+            if (!finished) {
+                process.destroyForcibly();
+                log.warn("本机摄像头截图超时（20s），降级使用默认快照图");
+                return null;
+            }
+            if (process.exitValue() == 0 && Files.exists(file) && Files.size(file) > 0) {
+                String url = "/images/ai-review/" + file.getFileName();
+                log.info("本机摄像头截图成功: {} -> {}", alarmLogId, url);
+                return url;
+            }
+            log.warn("本机摄像头截图失败（exit={}），降级使用默认快照图", process.exitValue());
+            return null;
+        } catch (Exception e) {
+            log.warn("本机摄像头截图异常: {}，降级使用默认快照图", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 模型侧图片地址解析：本地相对路径读取文件转 base64 data URI（云端模型访问不到 localhost），
+     * 外链 URL（仿真默认图/手动传入）原样返回。
+     */
+    private String resolveModelImageUrl(String imageUrl) {
+        if (imageUrl != null && imageUrl.startsWith("/")) {
+            try {
+                Path file = Paths.get(snapshotDir).resolve(Paths.get(imageUrl).getFileName().toString());
+                byte[] bytes = Files.readAllBytes(file);
+                return "data:image/jpeg;base64," + Base64.getEncoder().encodeToString(bytes);
+            } catch (IOException e) {
+                log.warn("读取本地截图转 base64 失败: {}", e.getMessage());
+            }
+        }
+        return imageUrl;
     }
 
     /**
@@ -225,11 +305,11 @@ public class AiReviewServiceImpl implements IAiReviewService {
                     "如果图片不清晰或无法判断，has_fire设为false，confidence设为0.3以下。");
             content.add(textPart);
 
-            // 图片 URL
+            // 图片（本地截图转 base64 data URI，云端模型无法访问 localhost；外链 URL 直接传递）
             ObjectNode imagePart = objectMapper.createObjectNode();
             imagePart.put("type", "image_url");
             ObjectNode imageUrlNode = objectMapper.createObjectNode();
-            imageUrlNode.put("url", reviewLog.getImageUrl());
+            imageUrlNode.put("url", resolveModelImageUrl(reviewLog.getImageUrl()));
             imagePart.set("image_url", imageUrlNode);
             content.add(imagePart);
 

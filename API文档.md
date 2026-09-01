@@ -586,6 +586,8 @@ Doc 字段：
 ## 10. AI 视觉复核（明火检测） — `/ai-review`
 
 > **已启用**：FIRE 级别告警自动触发 `@Async` 异步视觉复核（不阻塞主流程）。后端接入 SiliconFlow 视觉大模型（Qwen3-VL-8B-Instruct），摄像头查找用三级降级策略：优先绑定的专属摄像头 → 同小区在线摄像头 → 同小区任意摄像头。结果通过 WebSocket `/topic/ai-review` 实时推送。
+>
+> **图片来源三级优先**：① 手动重试显式传入的 `imageUrl` → ② 本机电脑摄像头实时截图（`camera-enabled: true` 时用 ffmpeg dshow 拍一帧，存 `uploads/ai-review/`，通过 `/images/ai-review/**` 静态访问）→ ③ 配置的 `default-snapshot-url`（仿真模式，无摄像头/截图失败时自动降级）。
 
 ### 10.1 查询某告警的 AI 复核结果
 
@@ -600,7 +602,7 @@ Doc 字段：
 |smokeDeviceId|string|烟感设备 ID|
 |cameraDeviceId|string|使用的摄像头设备 ID|
 |cameraDeviceName|string|摄像头设备名称|
-|imageUrl|string|AI 复核使用的图片 URL|
+|imageUrl|string|AI 复核使用的图片地址。两种形态：本机截图为**相对路径**（`/images/ai-review/review-x.jpg`，前端需拼 `API_BASE` 后展示 `<img>`）；仿真/外链为**完整 URL**，直接展示|
 |aiResult|string|AI 判定结果：`FIRE`（确认火情）/ `NO_FIRE`（无火情）/ `UNCERTAIN`（不确定）|
 |confidence|string|置信度（0.0 - 1.0，如 "0.98"）|
 |aiDescription|string|AI 返回的自然语言描述|
@@ -619,7 +621,7 @@ Doc 字段：
 
 |字段|类型|必填|说明|
 |-|-|-|-|
-|imageUrl|string|否|指定图片 URL 覆盖默认的告警关联截图；不传则用后端默认配置|
+|imageUrl|string|否|指定图片 URL 覆盖默认来源（最高优先级）；不传则按 10 章开头的三级优先自动选择|
 
 ```json
 {}
@@ -632,6 +634,15 @@ Doc 字段：
 ### 10.3 自动触发时机
 
 后端在 `AlarmLogsServiceImpl.createAlarm()` 创建 **FIRE** 级别告警时，自动 `@Async` 异步调用 AI 复核，无需前端手动触发。
+
+### 10.4 图片可视化（静态资源）
+
+本机摄像头截图保存在后端 `uploads/ai-review/` 目录，并映射为静态资源：
+
+- **URL**：`GET /images/ai-review/{文件名}`（如 `/images/ai-review/review-12-1756280000000.jpg`）
+- **认证**：无需 token（静态资源不受 JWT 拦截器校验），`<img>` 标签可直接引用
+- **跨域**：已允许任意来源（同全局 CORS 配置）
+- **前端展示**：`<img :src="API_BASE + imageUrl" />`（imageUrl 为相对路径时）或 `<img :src="imageUrl" />`（完整 URL 时）
 
 ---
 
