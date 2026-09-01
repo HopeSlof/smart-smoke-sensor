@@ -4,8 +4,10 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.cqu.common.enums.DeviceType;
 import com.cqu.config.LlmConfig;
 import com.cqu.entity.AiReviewLog;
+import com.cqu.entity.AlarmLogs;
 import com.cqu.entity.Devices;
 import com.cqu.mapper.AiReviewLogMapper;
+import com.cqu.mapper.AlarmLogsMapper;
 import com.cqu.mapper.DevicesMapper;
 import com.cqu.service.IAiReviewService;
 import com.cqu.utils.WebSocketNotifier;
@@ -42,6 +44,9 @@ public class AiReviewServiceImpl implements IAiReviewService {
 
     @Autowired
     private AiReviewLogMapper aiReviewLogMapper;
+
+    @Autowired
+    private AlarmLogsMapper alarmLogsMapper;
 
     @Autowired
     private DevicesMapper devicesMapper;
@@ -99,12 +104,15 @@ public class AiReviewServiceImpl implements IAiReviewService {
             return;
         }
 
-        // 通过 alarmLogId 查找告警获取烟感设备 ID
-        // 如果是手动触发，imageUrl 由调用方提供
+        // 获取烟感设备 ID：优先从已有复核记录取，其次从告警记录取
         Long smokeDeviceId = existing != null ? existing.getSmokeDeviceId() : null;
         if (smokeDeviceId == null) {
-            // 从告警记录中无法直接获取，需要从 alarm_logs 表查
-            // 这里通过 alarmLogId 关联查询
+            AlarmLogs alarm = alarmLogsMapper.selectById(alarmLogId);
+            if (alarm != null) {
+                smokeDeviceId = alarm.getDeviceId();
+            }
+        }
+        if (smokeDeviceId == null) {
             log.warn("无法确定烟感设备 ID，使用 imageUrl 直接分析");
         }
 
