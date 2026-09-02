@@ -42,7 +42,7 @@ docker exec -i pg17-vector createdb -U postgres smart-smoke-sensor
 type sql\schema.sql | docker exec -i pg17-vector psql -U postgres -d smart-smoke-sensor
 ```
 
-> `schema.sql` 已包含 10 张表：`users`、`community`、`devices`、`user_device`、`smoke_readings`、`threshold_config`、`alarm_logs`、`control_logs`、`knowledge_chunks`、`user_message`。
+> `schema.sql` 已包含 14 张表：`users`、`community`、`devices`、`user_device`、`cameras`、`smoke_readings`、`threshold_config`、`alarm_logs`、`control_logs`、`knowledge_chunks`、`chat_session`、`chat_message`、`ai_review_log`、`user_message`。
 
 ### 3. 配置敏感信息
 

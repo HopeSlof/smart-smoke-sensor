@@ -21,6 +21,7 @@ import com.cqu.vo.ChatSessionVO;
 import com.cqu.vo.KnowledgeImportRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -51,6 +52,15 @@ public class RagServiceImpl extends ServiceImpl<KnowledgeChunksMapper, Knowledge
     private final ChatSessionMapper chatSessionMapper;
     private final ChatMessageMapper chatMessageMapper;
 
+    /**
+     * 向量检索余弦距离阈值（0=完全相同，越小越严格）。
+     * bge-m3 实测：相关消防问题最近距离约 0.65，日常短句（如"今天天气"）约 0.63，
+     * 两者重叠，故取 0.75 保召回——主要过滤完全无关的长句（距离>0.75）；
+     * 短无关句的精细过滤需扩充知识库或引入 rerank 才能解决。
+     */
+    @Value("${llm.rag.similarity-threshold:0.75}")
+    private double similarityThreshold;
+
     private static final String SYSTEM_PROMPT = """
             你是智慧烟感系统的消防应急助手。请根据用户问题提供专业、简洁、准确的回答，
             内容包括火灾应急处理、人员疏散、烟感设备维护等。
@@ -70,7 +80,7 @@ public class RagServiceImpl extends ServiceImpl<KnowledgeChunksMapper, Knowledge
         try {
             float[] embedding = embed(question);
             chunks = knowledgeChunksMapper.searchByEmbedding(
-                    Arrays.toString(embedding), llmConfig.getTopK());
+                    Arrays.toString(embedding), llmConfig.getTopK(), similarityThreshold);
             context = chunks.stream()
                     .map(c -> "- " + c.getContent())
                     .collect(Collectors.joining("\n"));

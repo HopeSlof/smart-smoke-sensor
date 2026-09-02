@@ -46,12 +46,14 @@ public class WebMvcConfiguration implements WebMvcConfigurer {
                 .addPathPatterns("/**")
                 .excludePathPatterns("/users/register", "/users/login", "/users/reset-password")
                 .excludePathPatterns("/devices/heartbeat", "/devices/self-check")
-                .excludePathPatterns("/smoke-readings/report");
+                .excludePathPatterns("/smoke-readings/report")
+                .excludePathPatterns("/community/public");
 
         registry.addInterceptor(roleInterceptor)
                 .addPathPatterns("/**")
                 .excludePathPatterns("/users/register", "/users/login", "/users/reset-password")
                 .excludePathPatterns("/devices/heartbeat", "/devices/self-check")
-                .excludePathPatterns("/smoke-readings/report");
+                .excludePathPatterns("/smoke-readings/report")
+                .excludePathPatterns("/community/public");
     }
 }

@@ -105,4 +105,15 @@ INSERT INTO alarm_logs (device_id, alarm_type, alarm_level, message, status, dis
   (12, 'LOW_BATTERY', 'LOW_BATTERY', '设备电量低于 20%', 'ACTIVE', NULL, NULL, FALSE, now() - interval '30 minutes', NULL),
   (11, 'SMOKE_HIGH', 'FIRE', '烟雾浓度异常升高', 'RESOLVED', 'CONFIRMED_FIRE', now() - interval '1 day', TRUE, now() - interval '1 day 1 hour', now() - interval '1 day');
 
+-- 8. 摄像头（从 devices 表 CAMERA 类型记录迁移，bound_device_id 指向烟感设备）
+INSERT INTO cameras (id, camera_name, camera_sn, community_id, location, online_status, bound_device_id, snapshot_url) VALUES
+  (1, '1栋1单元101室摄像头', 'SN-CAM-C1-001', 1, '1栋1单元101室门口', 'ONLINE',  11, NULL),
+  (2, '1栋2单元302室摄像头', 'SN-CAM-C1-002', 1, '1栋2单元302室门口', 'ONLINE',  12, NULL),
+  (3, '2栋1单元501室摄像头', 'SN-CAM-C1-003', 1, '2栋1单元501室门口', 'ONLINE',  13, NULL),
+  (4, 'A栋3单元201室摄像头', 'SN-CAM-C2-001', 2, 'A栋3单元201室门口', 'ONLINE',  14, NULL),
+  (5, 'B栋1单元402室摄像头', 'SN-CAM-C2-002', 2, 'B栋1单元402室门口', 'OFFLINE', 15, NULL),
+  (6, '6栋2单元603室摄像头', 'SN-CAM-C3-001', 3, '6栋2单元603室门口', 'ONLINE',  16, NULL),
+  (7, '8栋1单元301室摄像头', 'SN-CAM-C3-002', 3, '8栋1单元301室门口', 'ONLINE',  17, NULL)
+ON CONFLICT (id) DO NOTHING;
+
 COMMIT;

@@ -5,9 +5,11 @@ import com.cqu.common.enums.DeviceType;
 import com.cqu.config.LlmConfig;
 import com.cqu.entity.AiReviewLog;
 import com.cqu.entity.AlarmLogs;
+import com.cqu.entity.Cameras;
 import com.cqu.entity.Devices;
 import com.cqu.mapper.AiReviewLogMapper;
 import com.cqu.mapper.AlarmLogsMapper;
+import com.cqu.mapper.CamerasMapper;
 import com.cqu.mapper.DevicesMapper;
 import com.cqu.service.IAiReviewService;
 import com.cqu.utils.WebSocketNotifier;
@@ -50,6 +52,9 @@ public class AiReviewServiceImpl implements IAiReviewService {
 
     @Autowired
     private DevicesMapper devicesMapper;
+
+    @Autowired
+    private CamerasMapper camerasMapper;
 
     @Autowired
     private LlmConfig llmConfig;
@@ -117,7 +122,7 @@ public class AiReviewServiceImpl implements IAiReviewService {
         }
 
         // 查找同小区的摄像头
-        Devices camera = findCamera(smokeDeviceId);
+        Cameras camera = findCamera(smokeDeviceId);
         // 图片来源优先级：1.手动重试显式传入的 URL  2.本机电脑摄像头实时截图  3.配置的默认快照图（仿真）
         String effectiveImageUrl = imageUrl;
         if (effectiveImageUrl == null || effectiveImageUrl.isBlank()) {
@@ -137,7 +142,7 @@ public class AiReviewServiceImpl implements IAiReviewService {
         reviewLog.setCreatedAt(LocalDateTime.now());
         aiReviewLogMapper.insert(reviewLog);
         log.info("创建 AI 复核记录: id={}, alarmLogId={}, camera={}",
-                reviewLog.getId(), alarmLogId, camera != null ? camera.getDeviceName() : "无");
+                reviewLog.getId(), alarmLogId, camera != null ? camera.getCameraName() : "无");
 
         // 调用 AI 视觉模型
         callVisionModel(reviewLog);
@@ -215,20 +220,18 @@ public class AiReviewServiceImpl implements IAiReviewService {
 
     /**
      * 查找烟感绑定的摄像头设备
-     * 优先使用 bound_camera_id 绑定的摄像头，未绑定时按小区查找
+     * 优先使用 bound_camera_id 绑定的摄像头（cameras 表），未绑定时按小区查找
      */
-    private Devices findCamera(Long smokeDeviceId) {
+    private Cameras findCamera(Long smokeDeviceId) {
         if (smokeDeviceId == null) {
             // 无烟感设备 ID 时，查找任意摄像头（优先在线）
-            Devices cam = devicesMapper.selectOne(
-                    new LambdaQueryWrapper<Devices>()
-                            .eq(Devices::getDeviceType, DeviceType.CAMERA.name())
-                            .eq(Devices::getOnlineStatus, "ONLINE")
+            Cameras cam = camerasMapper.selectOne(
+                    new LambdaQueryWrapper<Cameras>()
+                            .eq(Cameras::getOnlineStatus, "ONLINE")
                             .last("LIMIT 1"));
             if (cam == null) {
-                cam = devicesMapper.selectOne(
-                        new LambdaQueryWrapper<Devices>()
-                                .eq(Devices::getDeviceType, DeviceType.CAMERA.name())
+                cam = camerasMapper.selectOne(
+                        new LambdaQueryWrapper<Cameras>()
                                 .last("LIMIT 1"));
             }
             return cam;
@@ -237,12 +240,12 @@ public class AiReviewServiceImpl implements IAiReviewService {
         if (smokeDevice == null) {
             return null;
         }
-        // 优先使用绑定的摄像头
+        // 优先使用绑定的摄像头（bound_camera_id 统一指向 cameras 表）
         if (smokeDevice.getBoundCameraId() != null) {
-            Devices boundCamera = devicesMapper.selectById(smokeDevice.getBoundCameraId());
+            Cameras boundCamera = camerasMapper.selectById(smokeDevice.getBoundCameraId());
             if (boundCamera != null) {
                 log.info("使用绑定摄像头: smokeDevice={}, camera={}",
-                        smokeDevice.getDeviceName(), boundCamera.getDeviceName());
+                        smokeDevice.getDeviceName(), boundCamera.getCameraName());
                 return boundCamera;
             }
         }
@@ -250,22 +253,20 @@ public class AiReviewServiceImpl implements IAiReviewService {
         if (smokeDevice.getCommunityId() == null) {
             return null;
         }
-        Devices camera = devicesMapper.selectOne(
-                new LambdaQueryWrapper<Devices>()
-                        .eq(Devices::getDeviceType, DeviceType.CAMERA.name())
-                        .eq(Devices::getCommunityId, smokeDevice.getCommunityId())
-                        .eq(Devices::getOnlineStatus, "ONLINE")
+        Cameras camera = camerasMapper.selectOne(
+                new LambdaQueryWrapper<Cameras>()
+                        .eq(Cameras::getCommunityId, smokeDevice.getCommunityId())
+                        .eq(Cameras::getOnlineStatus, "ONLINE")
                         .last("LIMIT 1"));
         if (camera == null) {
             // 同小区无在线摄像头，放宽条件查找任意摄像头
-            camera = devicesMapper.selectOne(
-                    new LambdaQueryWrapper<Devices>()
-                            .eq(Devices::getDeviceType, DeviceType.CAMERA.name())
-                            .eq(Devices::getCommunityId, smokeDevice.getCommunityId())
+            camera = camerasMapper.selectOne(
+                    new LambdaQueryWrapper<Cameras>()
+                            .eq(Cameras::getCommunityId, smokeDevice.getCommunityId())
                             .last("LIMIT 1"));
         }
         if (camera != null) {
-            log.warn("烟感 {} 未绑定摄像头，使用同小区摄像头 {}", smokeDevice.getDeviceName(), camera.getDeviceName());
+            log.warn("烟感 {} 未绑定摄像头，使用同小区摄像头 {}", smokeDevice.getDeviceName(), camera.getCameraName());
         }
         return camera;
     }
@@ -444,8 +445,8 @@ public class AiReviewServiceImpl implements IAiReviewService {
     private AiReviewVO toVO(AiReviewLog reviewLog) {
         String cameraName = null;
         if (reviewLog.getCameraDeviceId() != null) {
-            Devices camera = devicesMapper.selectById(reviewLog.getCameraDeviceId());
-            if (camera != null) cameraName = camera.getDeviceName();
+            Cameras camera = camerasMapper.selectById(reviewLog.getCameraDeviceId());
+            if (camera != null) cameraName = camera.getCameraName();
         }
         return AiReviewVO.builder()
                 .id(String.valueOf(reviewLog.getId()))

@@ -131,8 +131,9 @@ public class SmokeReadingsServiceImpl extends ServiceImpl<SmokeReadingsMapper, S
         Devices device = devicesMapper.selectOne(
                 new LambdaQueryWrapper<Devices>().eq(Devices::getDeviceSn, deviceSn));
         if (device == null) {
-            log.warn("烟雾上报：未找到设备 deviceSn={}，数据丢弃", deviceSn);
-            return;
+            // 未知 SN 明确报错（HTTP 返回 400；MQTT 通道由 MqttGateway.handleMessage 兜底捕获，不影响连接）
+            log.warn("烟雾上报：未找到设备 deviceSn={}，拒绝入库", deviceSn);
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "设备不存在: " + deviceSn);
         }
         Long deviceId = device.getId();
 

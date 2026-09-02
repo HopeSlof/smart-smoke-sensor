@@ -139,6 +139,21 @@ public class MqttGateway implements IDeviceCommander {
 
     // ==================== 下发指令（IDeviceCommander） ====================
 
+    /** MQTT 连接状态 */
+    public boolean isConnected() {
+        return mqttClient != null && mqttClient.isConnected();
+    }
+
+    /** Broker 地址 */
+    public String getBrokerUrl() {
+        return brokerUrl;
+    }
+
+    /** 客户端 ID */
+    public String getClientId() {
+        return clientId;
+    }
+
     @Override
     public void publishCommand(String deviceSn, String command) {
         if (deviceSn == null) {

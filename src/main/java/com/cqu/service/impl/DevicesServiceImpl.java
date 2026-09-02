@@ -1,6 +1,7 @@
 package com.cqu.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cqu.common.enums.AlarmLevel;
@@ -11,10 +12,12 @@ import com.cqu.common.enums.Role;
 import com.cqu.common.exception.BusinessException;
 import com.cqu.common.exception.ErrorCode;
 import com.cqu.entity.AlarmLogs;
+import com.cqu.entity.Cameras;
 import com.cqu.entity.Devices;
 import com.cqu.entity.SmokeReadings;
 import com.cqu.entity.UserDevice;
 import com.cqu.mapper.AlarmLogsMapper;
+import com.cqu.mapper.CamerasMapper;
 import com.cqu.mapper.DevicesMapper;
 import com.cqu.mapper.SmokeReadingsMapper;
 import com.cqu.mapper.UserDeviceMapper;
@@ -48,6 +51,9 @@ public class DevicesServiceImpl extends ServiceImpl<DevicesMapper, Devices> impl
 
     @Autowired
     private DevicesMapper devicesMapper;
+
+    @Autowired
+    private CamerasMapper camerasMapper;
 
     @Autowired
     private SmokeReadingsMapper smokeReadingsMapper;
@@ -148,28 +154,29 @@ public class DevicesServiceImpl extends ServiceImpl<DevicesMapper, Devices> impl
         this.save(device);
         log.info("新增设备: deviceSn={}, communityId={}, operatorId={}", request.getDeviceSn(), device.getCommunityId(), UserHolder.getUserId());
 
-        // 新增烟感时自动创建专属摄像头并绑定
+        // 新增烟感时自动创建专属摄像头并绑定（统一语义：cameras 表，bound_camera_id 存 cameras.id）
         if (DeviceType.SMOKE_SENSOR.name().equals(deviceType)) {
-            Devices camera = new Devices();
-            String camSn = "SN-CAM-AUTO-" + device.getDeviceSn().replace("SN-", "");
-            camera.setDeviceName(request.getDeviceName() + "摄像头");
-            camera.setDeviceSn(camSn);
-            camera.setDeviceType(DeviceType.CAMERA.name());
+            Cameras camera = new Cameras();
+            camera.setCameraName(request.getDeviceName() + "摄像头");
+            camera.setCameraSn("SN-CAM-AUTO-" + device.getDeviceSn().replace("SN-", ""));
             camera.setCommunityId(device.getCommunityId());
             camera.setLocation((request.getLocation() != null ? request.getLocation() : "") + "门口");
             camera.setOnlineStatus("ONLINE");
-            camera.setBatteryLevel(100);
-            this.save(camera);
+            camera.setBoundDeviceId(device.getId());
+            camera.setCreatedAt(LocalDateTime.now());
+            camerasMapper.insert(camera);
 
             device.setBoundCameraId(camera.getId());
             this.updateById(device);
-            log.info("自动创建摄像头并绑定: smokeDevice={}, camera={}", device.getDeviceName(), camera.getDeviceName());
+            log.info("自动创建摄像头并绑定: smokeDevice={}, camera={}({})",
+                    device.getDeviceName(), camera.getCameraName(), camera.getId());
         }
 
         controlLogsService.recordLog(device.getId(), "ADD_DEVICE", "SUCCESS", "MANUAL");
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void updateDevice(Long id, DeviceAddRequest request) {
         Devices device = this.getById(id);
         if (device == null) {
@@ -202,19 +209,19 @@ public class DevicesServiceImpl extends ServiceImpl<DevicesMapper, Devices> impl
         }
         this.updateById(device);
 
-        // 同步烟感绑定摄像头的名称和位置
+        // 同步烟感绑定摄像头的名称和位置（统一语义：cameras 表）
         if (DeviceType.SMOKE_SENSOR.name().equals(device.getDeviceType())
                 && device.getBoundCameraId() != null
                 && (nameChanged || locationChanged)) {
-            Devices camera = this.getById(device.getBoundCameraId());
+            Cameras camera = camerasMapper.selectById(device.getBoundCameraId());
             if (camera != null) {
                 if (nameChanged) {
-                    camera.setDeviceName(device.getDeviceName() + "摄像头");
+                    camera.setCameraName(device.getDeviceName() + "摄像头");
                 }
                 if (locationChanged && device.getLocation() != null) {
                     camera.setLocation(device.getLocation() + "门口");
                 }
-                this.updateById(camera);
+                camerasMapper.updateById(camera);
             }
         }
 
@@ -233,18 +240,12 @@ public class DevicesServiceImpl extends ServiceImpl<DevicesMapper, Devices> impl
         alarmLogsMapper.delete(new LambdaQueryWrapper<AlarmLogs>().eq(AlarmLogs::getDeviceId, id));
         userDeviceMapper.delete(new LambdaQueryWrapper<UserDevice>().eq(UserDevice::getDeviceId, id));
 
-        // 如果是烟感且绑定了摄像头，一并处理（解绑或级联删除）
+        // 如果是烟感且绑定了摄像头，级联删除 cameras 表记录（一对一专属绑定）
         if (DeviceType.SMOKE_SENSOR.name().equals(device.getDeviceType()) && device.getBoundCameraId() != null) {
-            Devices camera = this.getById(device.getBoundCameraId());
+            Cameras camera = camerasMapper.selectById(device.getBoundCameraId());
             if (camera != null) {
-                // 如果该摄像头只被这个烟感绑定，级联删除；否则只解绑
-                long bindCount = this.lambdaQuery().eq(Devices::getBoundCameraId, camera.getId()).count();
-                if (bindCount <= 1) {
-                    this.removeById(camera.getId());
-                    log.info("级联删除摄像头: cameraId={}, 原因=烟感 {} 被删除", camera.getId(), id);
-                } else {
-                    log.info("摄像头 {} 仍被其他烟感绑定，保留仅解绑", camera.getId());
-                }
+                camerasMapper.deleteById(camera.getId());
+                log.info("级联删除摄像头: cameraId={}, 原因=烟感 {} 被删除", camera.getId(), id);
             }
         }
 
@@ -391,7 +392,8 @@ public class DevicesServiceImpl extends ServiceImpl<DevicesMapper, Devices> impl
     }
 
     @Override
-    public void bindCamera(Long smokeDeviceId, Long cameraDeviceId) {
+    @Transactional(rollbackFor = Exception.class)
+    public void bindCamera(Long smokeDeviceId, Long cameraId) {
         Devices smokeDevice = getById(smokeDeviceId);
         if (smokeDevice == null) {
             throw new BusinessException("烟感设备不存在");
@@ -400,34 +402,53 @@ public class DevicesServiceImpl extends ServiceImpl<DevicesMapper, Devices> impl
         if (!DeviceType.SMOKE_SENSOR.name().equals(smokeDevice.getDeviceType())) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "只能给烟感设备绑定摄像头");
         }
-        Devices camera = getById(cameraDeviceId);
+        // 统一语义：cameraId 为 cameras 表 ID（与 /cameras 接口、快照、AI 复核链路一致）
+        Cameras camera = camerasMapper.selectById(cameraId);
         if (camera == null) {
-            throw new BusinessException("摄像头设备不存在");
+            throw new BusinessException("摄像头不存在（cameraId 应为 cameras 表 ID，可从 GET /cameras 查询）");
         }
-        checkCommunityAccess(camera);
-        if (!DeviceType.CAMERA.name().equals(camera.getDeviceType())) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "目标设备不是摄像头");
+        // 小区隔离：摄像头必须与本烟感同小区
+        if (camera.getCommunityId() != null && !camera.getCommunityId().equals(smokeDevice.getCommunityId())) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "摄像头与烟感不在同一小区，无法绑定");
         }
-        // 摄像头只能被一个烟感专属绑定（一对一）
-        long existingBindCount = this.lambdaQuery().eq(Devices::getBoundCameraId, cameraDeviceId).count();
-        if (existingBindCount > 0) {
+        // 一对一：摄像头只能被一个烟感专属绑定
+        long occupied = this.lambdaQuery()
+                .eq(Devices::getBoundCameraId, cameraId)
+                .ne(Devices::getId, smokeDeviceId)
+                .count();
+        if (occupied > 0) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "该摄像头已被其他烟感绑定，请先解绑");
         }
-        smokeDevice.setBoundCameraId(cameraDeviceId);
-        updateById(smokeDevice);
+        // 双向同步：devices.bound_camera_id + cameras.bound_device_id
+        this.update(new UpdateWrapper<Devices>()
+                .eq("id", smokeDeviceId)
+                .set("bound_camera_id", cameraId));
+        camerasMapper.update(new UpdateWrapper<Cameras>()
+                .eq("id", cameraId)
+                .set("bound_device_id", smokeDeviceId));
         log.info("绑定摄像头: smokeDevice={}({}) -> camera={}({})",
-                smokeDevice.getDeviceName(), smokeDevice.getId(), camera.getDeviceName(), camera.getId());
+                smokeDevice.getDeviceName(), smokeDeviceId, camera.getCameraName(), cameraId);
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void unbindCamera(Long smokeDeviceId) {
         Devices smokeDevice = getById(smokeDeviceId);
         if (smokeDevice == null) {
             throw new BusinessException("烟感设备不存在");
         }
         checkCommunityAccess(smokeDevice);
-        smokeDevice.setBoundCameraId(null);
-        updateById(smokeDevice);
-        log.info("解绑摄像头: smokeDevice={}({})", smokeDevice.getDeviceName(), smokeDevice.getId());
+        Long oldCameraId = smokeDevice.getBoundCameraId();
+        // UpdateWrapper 显式 set null（updateById 会忽略 null 字段导致解绑无效）
+        this.update(new UpdateWrapper<Devices>()
+                .eq("id", smokeDeviceId)
+                .set("bound_camera_id", null));
+        if (oldCameraId != null) {
+            camerasMapper.update(new UpdateWrapper<Cameras>()
+                    .eq("id", oldCameraId)
+                    .eq("bound_device_id", smokeDeviceId)
+                    .set("bound_device_id", null));
+        }
+        log.info("解绑摄像头: smokeDevice={}({})", smokeDevice.getDeviceName(), smokeDeviceId);
     }
 }

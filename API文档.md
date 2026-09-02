@@ -277,9 +277,9 @@
 |location|string|否|安装位置|
 
 - **重要行为（后端自动处理）**：
-  - 当 `deviceType = SMOKE_SENSOR`（烟感）时，后端 `@Transactional` **自动创建同位置的专属摄像头（CAMERA）并绑定**，确保烟感与摄像头一对一。新增烟感后查询设备列表会返回两条记录（烟感 + 摄像头），烟感的 `boundCameraId` 指向摄像头。
-  - 删除烟感时**级联删除绑定的摄像头**（同事务，不会产生孤儿数据）。
-  - 更新烟感名称/位置时，**自动同步到绑定的摄像头**。
+  - 当 `deviceType = SMOKE_SENSOR`（烟感）时，后端 `@Transactional` **自动在 cameras 表创建同位置的专属摄像头并绑定**（`devices.bound_camera_id` 指向 `cameras.id`，`cameras.bound_device_id` 反向指向烟感），确保一对一。摄像头可在 `GET /cameras` 中查询。
+  - 删除烟感时**级联删除 cameras 表中绑定的摄像头**（同事务，不会产生孤儿数据）。
+  - 更新烟感名称/位置时，**自动同步到 cameras 表绑定的摄像头**。
 
 ### 3.5 编辑设备
 
@@ -290,7 +290,7 @@
 
 - **URL**：`DELETE /devices/{id}`
 - **角色**：`SYSTEM_ADMIN` / `COMMUNITY_ADMIN`（小区管理员只能删本小区设备）
-- **说明**：同时删除该设备的烟雾记录、告警和住户绑定关系。
+- **说明**：同时删除该设备的烟雾记录、告警和住户绑定关系；若为烟感且绑定了摄像头，**级联删除 cameras 表中的摄像头记录**（同事务）。
 
 ### 3.7 绑定住户-设备
 
@@ -316,19 +316,38 @@
 
 ### 3.11 绑定摄像头到烟感（一对一）
 
-- **URL**：`PUT /devices/{smokeDeviceId}/bind-camera/{cameraDeviceId}`
+- **URL**：`PUT /devices/{smokeDeviceId}/bind-camera/{cameraId}`
 - **角色**：`SYSTEM_ADMIN` / `COMMUNITY_ADMIN`
 - **说明**：
-  - 绑定是**一对一**关系，一个摄像头只能被一个烟感绑定（已被绑的摄像头会返回"该摄像头已被其他烟感绑定"）。
-  - `smokeDeviceId` 必须是 `SMOKE_SENSOR` 类型，`cameraDeviceId` 必须是 `CAMERA` 类型。
-  - 小区管理员只能在**本小区内**绑定（`checkCommunityAccess` 校验），跨小区会被拒绝。
-  - 如果烟感已有绑定的摄像头，会先**解绑旧的再绑定新的**（替换关系）。
+  - **`cameraId` 为 cameras 表 ID**（从 `GET /cameras` 获取），与摄像头快照、AI 复核链路统一语义；传 devices 表 ID 会返回"摄像头不存在"。
+  - 绑定是**一对一**关系，一个摄像头只能被一个烟感绑定（已被绑的摄像头会返回"该摄像头已被其他烟感绑定，请先解绑"）。
+  - `smokeDeviceId` 必须是 `SMOKE_SENSOR` 类型设备。
+  - 小区隔离：摄像头必须与烟感**同小区**，跨小区返回 403。
+  - 绑定成功后**双向同步**：`devices.bound_camera_id = cameraId` 且 `cameras.bound_device_id = smokeDeviceId`；若烟感原已绑定其他摄像头，原摄像头关联自动被替换。
 
 ### 3.12 解绑烟感的摄像头
 
 - **URL**：`DELETE /devices/{smokeDeviceId}/bind-camera`
 - **角色**：`SYSTEM_ADMIN` / `COMMUNITY_ADMIN`
-- **说明**：小区管理员只能解绑本小区烟感的摄像头。解绑不会删除摄像头，只是解除绑定关系。
+- **说明**：小区管理员只能解绑本小区烟感的摄像头。解绑**同时清空双向关系**（`devices.bound_camera_id` 置空 + `cameras.bound_device_id` 置空），不会删除摄像头记录。
+
+### 3.13 摄像头管理 — `/cameras`
+
+摄像头独立表（`cameras`），通过 `bound_device_id` 与烟感一对一关联（与 3.11/3.12 双向同步）。所有接口需登录。
+
+|接口|方法|角色|说明|
+|-|-|-|-|
+|`/cameras`|GET|全部角色|分页列表，参数 `page`、`pageSize`、`cameraName`、`onlineStatus`；居民/小区管理员只看本小区|
+|`/cameras/{id}`|GET|全部角色|摄像头详情|
+|`/cameras`|POST|`SYSTEM_ADMIN` / `COMMUNITY_ADMIN`|创建摄像头|
+|`/cameras/{id}`|PUT|`SYSTEM_ADMIN` / `COMMUNITY_ADMIN`|更新摄像头|
+|`/cameras/{id}`|DELETE|`SYSTEM_ADMIN`|删除摄像头（若绑定烟感则同步解绑）|
+|`/cameras/{id}/capture`|POST|全部角色|拍照上传：`{"image": "<base64>"}`，保存文件并更新 `snapshotUrl`|
+|`/cameras/{id}/snapshot`|GET|全部角色|获取最新截图 URL|
+|`/cameras/{id}/bind-device/{deviceId}`|POST|`SYSTEM_ADMIN` / `COMMUNITY_ADMIN`|摄像头侧绑定烟感（双向同步，等价 3.11）|
+|`/cameras/{id}/bind-device`|DELETE|`SYSTEM_ADMIN` / `COMMUNITY_ADMIN`|摄像头侧解绑（双向清理）|
+
+- **CameraVO 字段**：`id`、`cameraName`、`cameraSn`、`communityId`、`communityName`、`location`、`onlineStatus`、`boundDeviceId`、`boundDeviceName`、`snapshotUrl`、`createdAt`
 
 ---
 
@@ -372,6 +391,7 @@
 - **URL**：`POST /smoke-readings/report`，认证不需要
 - **请求体**：`{"deviceSn": "SN001", "smokeConcentration": 250, "temperature": 60, "coConcentration": 150}`
 - **说明**：刷新在线状态、保存记录、WebSocket 推送，并触发规则引擎分级判定。
+- **错误处理**：`deviceSn` 不存在时返回 **400**（`设备不存在: SNxxx`），拒绝入库；MQTT 通道由网关兜底捕获异常，不影响连接。
 
 ---
 
@@ -479,6 +499,8 @@
 ## 9. RAG 消防知识问答 — `/knowledge-chunks`
 
 > **已启用**：后端已接入 SiliconFlow 大模型（Qwen2.5-7B-Instruct + BAAI/bge-m3 embedding），6 篇消防知识已向量化入库。异常时自动降级为纯 LLM 回答。
+>
+> **检索阈值**：向量检索按余弦距离过滤（`embedding <=> query < llm.rag.similarity-threshold`，默认 0.75），完全无关的长句不再被强凑进 `sources`；阈值可在 `application-secret.yml` 中调整（越小越严格）。
 
 ### 9.1 智能问答（支持多轮会话）
 
@@ -585,7 +607,7 @@ Doc 字段：
 
 ## 10. AI 视觉复核（明火检测） — `/ai-review`
 
-> **已启用**：FIRE 级别告警自动触发 `@Async` 异步视觉复核（不阻塞主流程）。后端接入 SiliconFlow 视觉大模型（Qwen3-VL-8B-Instruct），摄像头查找用三级降级策略：优先绑定的专属摄像头 → 同小区在线摄像头 → 同小区任意摄像头。结果通过 WebSocket `/topic/ai-review` 实时推送。
+> **已启用**：FIRE 级别告警自动触发 `@Async` 异步视觉复核（不阻塞主流程）。后端接入 SiliconFlow 视觉大模型（Qwen3-VL-8B-Instruct），摄像头查找用三级降级策略：优先绑定的专属摄像头（`devices.bound_camera_id`，统一指向 **cameras 表**）→ 同小区在线摄像头 → 同小区任意摄像头。结果通过 WebSocket `/topic/ai-review` 实时推送。
 >
 > **图片来源三级优先**：① 手动重试显式传入的 `imageUrl` → ② 本机电脑摄像头实时截图（`camera-enabled: true` 时用 ffmpeg dshow 拍一帧，存 `uploads/ai-review/`，通过 `/images/ai-review/**` 静态访问）→ ③ 配置的 `default-snapshot-url`（仿真模式，无摄像头/截图失败时自动降级）。
 
@@ -600,8 +622,8 @@ Doc 字段：
 |id|string|AI 复核记录 ID|
 |alarmLogId|string|关联的告警记录 ID|
 |smokeDeviceId|string|烟感设备 ID|
-|cameraDeviceId|string|使用的摄像头设备 ID|
-|cameraDeviceName|string|摄像头设备名称|
+|cameraDeviceId|string|使用的摄像头 ID（**cameras 表 ID**）|
+|cameraDeviceName|string|摄像头名称（cameras 表 `camera_name`）|
 |imageUrl|string|AI 复核使用的图片地址。两种形态：本机截图为**相对路径**（`/images/ai-review/review-x.jpg`，前端需拼 `API_BASE` 后展示 `<img>`）；仿真/外链为**完整 URL**，直接展示|
 |aiResult|string|AI 判定结果：`FIRE`（确认火情）/ `NO_FIRE`（无火情）/ `UNCERTAIN`（不确定）|
 |confidence|string|置信度（0.0 - 1.0，如 "0.98"）|

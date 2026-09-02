@@ -1,0 +1,292 @@
+/* =======================================================
+ * layout.css - 页面布局、栅格、Panel卡片容器
+ * ======================================================= */
+
+/* ---------- 顶部标题栏 ---------- */
+.header {
+  position: sticky;
+  top: 0;
+  /* 顶部身份/消息/退出操作需要一整行可读空间，避免按钮被 64px 顶栏裁切。 */
+  height: 88px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 32px;
+  background: linear-gradient(180deg, rgba(2,6,23,0.96) 0%, rgba(2,6,23,0.86) 100%);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(34,211,238,0.14);
+}
+
+.header::before,
+.header::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  height: 2px;
+  width: 28%;
+  background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+  opacity: 0.6;
+}
+.header::before { left: 2%; }
+.header::after  { right: 2%; }
+
+.header-content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.header-title {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 900;
+  letter-spacing: 6px;
+  background: linear-gradient(180deg, #ffffff 0%, #a8e6ff 40%, var(--cyan) 100%);
+  -webkit-background-clip: text;
+          background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 30px rgba(0, 229, 255, 0.5);
+  animation: titleGlow 3s ease-in-out infinite alternate;
+}
+
+.header-sub {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 2px;
+}
+
+.header-sub .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.header-time {
+  position: absolute;
+  right: 32px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: var(--font-mono);
+  color: var(--cyan-dim);
+  text-align: right;
+  /* 身份标签、消息和退出按钮必须完整显示，不能被父级 flex 压缩。 */
+  min-width: 520px;
+}
+.header-time .time { font-size: 18px; font-weight: 700; color: var(--text-main); }
+.header-time .date { font-size: 10px; color: var(--text-dim); margin-top: 2px; letter-spacing: 1px; }
+
+.header-status {
+  position: absolute;
+  left: 32px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  gap: 10px;
+}
+.status-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: rgba(0, 229, 255, 0.08);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  font-size: 11px;
+  color: var(--cyan);
+}
+.status-chip::before {
+  content: '';
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 6px var(--green);
+}
+.status-chip.warn::before   { background: var(--orange); box-shadow: 0 0 6px var(--orange); }
+.status-chip.danger         { background: rgba(255, 61, 113, 0.1); color: var(--red); border-color: rgba(255, 61, 113, 0.4); }
+.status-chip.danger::before { background: var(--red);    box-shadow: 0 0 8px var(--red); animation: dangerBlink 1.4s ease-in-out infinite; }
+
+/* 角色数据范围提示条（RoleGuard 注入） */
+.status-chip.scope-banner-community {
+  background: rgba(59, 130, 246, 0.12);
+  color: #60a5fa;
+  border-color: rgba(59, 130, 246, 0.35);
+  font-weight: 500;
+}
+.status-chip.scope-banner-community::before {
+  background: #3b82f6;
+  box-shadow: 0 0 6px #3b82f6;
+}
+.status-chip.scope-banner-resident {
+  background: rgba(168, 85, 247, 0.1);
+  color: #c084fc;
+  border-color: rgba(168, 85, 247, 0.3);
+  font-weight: 500;
+}
+.status-chip.scope-banner-resident::before {
+  background: #a855f7;
+  box-shadow: 0 0 6px #a855f7;
+}
+
+/* ---------- 主内容区栅格 ---------- */
+.main {
+  position: relative;
+  z-index: 5;
+  display: grid;
+  grid-template-columns: 24% 52% 24%;
+  gap: 18px;
+  padding: 16px 20px 32px 20px;
+  min-height: calc(100vh - 88px);
+  align-items: start;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* ---------- 通用面板容器 ---------- */
+.panel {
+  position: relative;
+  background: var(--bg-card);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  padding: 14px 16px 16px 16px;
+  backdrop-filter: blur(10px);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+/* 四角装饰 */
+.panel::before,
+.panel::after,
+.panel > .corner-tl,
+.panel > .corner-br {
+  content: '';
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--cyan);
+  opacity: 0.7;
+}
+.panel::before   { top: -1px;    left: -1px;   border-right: none; border-bottom: none; }
+.panel::after    { bottom: -1px; right: -1px;  border-left: none;  border-top: none; }
+.panel > .corner-tl { top: -1px;    right: -1px; border-left: none;  border-bottom: none; }
+.panel > .corner-br { bottom: -1px; left: -1px;  border-right: none; border-top: none; }
+
+/* 顶部发光线条 */
+.panel > .glow-line {
+  position: absolute;
+  top: 0; left: 10%; right: 10%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+  opacity: 0.6;
+}
+
+/* 子面板（无四角，更紧凑） */
+.sub-panel {
+  position: relative;
+  background: var(--bg-card);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  backdrop-filter: blur(10px);
+  flex-shrink: 0;
+}
+.sub-panel::before {
+  content: '';
+  position: absolute;
+  top: -1px; left: -1px;
+  width: 10px; height: 10px;
+  border: 2px solid var(--cyan);
+  border-right: none; border-bottom: none;
+  opacity: 0.7;
+}
+
+/* ---------- 面板标题 ---------- */
+.panel-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.panel-title-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.panel-title-bar {
+  width: 4px;
+  height: 16px;
+  background: linear-gradient(180deg, var(--cyan), var(--blue));
+  border-radius: 2px;
+  box-shadow: 0 0 8px rgba(0, 229, 255, 0.6);
+  flex-shrink: 0;
+}
+
+.panel-title h3 {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--text-main);
+}
+
+.panel-title-en {
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.panel-title-icon {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-cyan);
+  border-radius: var(--radius-md);
+  color: var(--cyan);
+  background: rgba(0, 229, 255, 0.06);
+  flex-shrink: 0;
+}
+
+/* ---------- 响应式适配 ---------- */
+@media (max-width: 1400px) {
+  .main { grid-template-columns: 26% 48% 26%; }
+  .header-title { font-size: 28px; }
+}
+
+@media (max-width: 1200px) {
+  .main { grid-template-columns: 1fr; }
+  .column { min-height: 0; }
+  .header-title { font-size: 22px; letter-spacing: 3px; }
+  .header-status, .header-time { position: static; transform: none; }
+  .header {
+    height: auto;
+    min-height: 0;
+    flex-direction: column;
+    padding: 12px 16px;
+    gap: 10px;
+  }
+  .header-time {
+    width: 100%;
+    min-width: 0;
+    align-items: center;
+    text-align: center;
+  }
+}

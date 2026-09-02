@@ -70,4 +70,13 @@ public class CommunityController {
         communityService.setAdmin(id, body.get("adminUserId"));
         return Result.success("设置成功");
     }
+
+    /**
+     * 公开小区列表（注册页用，无需 token）
+     * GET /community/public
+     */
+    @GetMapping("/public")
+    public Result<PageResult<CommunityVO>> publicList() {
+        return Result.success(communityService.pageCommunities(1, 100, null));
+    }
 }

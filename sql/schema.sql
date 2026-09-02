@@ -219,3 +219,21 @@ CREATE TABLE IF NOT EXISTS ai_review_log
 );
 COMMENT ON TABLE ai_review_log IS 'AI 视觉复核记录';
 CREATE INDEX IF NOT EXISTS idx_ai_review_alarm ON ai_review_log (alarm_log_id);
+
+-- 14. 摄像头表（独立管理，与 devices 表一对一关联）
+CREATE TABLE IF NOT EXISTS cameras
+(
+    id              BIGSERIAL PRIMARY KEY,
+    camera_name     VARCHAR(128) NOT NULL,               -- 摄像头名称
+    camera_sn       VARCHAR(64)  NOT NULL UNIQUE,         -- 序列号
+    community_id    BIGINT,                               -- 归属小区
+    location        VARCHAR(256),                         -- 安装位置
+    online_status   VARCHAR(16)  NOT NULL DEFAULT 'OFFLINE', -- ONLINE | OFFLINE
+    bound_device_id BIGINT,                               -- 绑定的烟感设备 ID（一对一）
+    snapshot_url    VARCHAR(512),                         -- 最新截图 URL
+    created_at      TIMESTAMP    NOT NULL DEFAULT now()
+);
+COMMENT ON TABLE cameras IS '摄像头表（独立于 devices，通过 bound_device_id 与烟感设备一对一关联）';
+COMMENT ON COLUMN cameras.bound_device_id IS '绑定的烟感设备 ID（一对一，与 devices.bound_camera_id 双向同步）';
+CREATE INDEX IF NOT EXISTS idx_cameras_community ON cameras (community_id);
+CREATE INDEX IF NOT EXISTS idx_cameras_bound_device ON cameras (bound_device_id);

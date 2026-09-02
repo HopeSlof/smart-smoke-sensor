@@ -2,6 +2,10 @@ package com.cqu.controller;
 
 import com.cqu.common.annotation.RequireRole;
 import com.cqu.common.enums.Role;
+import com.cqu.entity.Cameras;
+import com.cqu.entity.Devices;
+import com.cqu.mapper.CamerasMapper;
+import com.cqu.mapper.DevicesMapper;
 import com.cqu.service.IDevicesService;
 import com.cqu.service.IUserDeviceService;
 import com.cqu.vo.BindDeviceRequest;
@@ -22,6 +26,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -36,6 +41,12 @@ public class DevicesController {
 
     @Autowired
     private IUserDeviceService userDeviceService;
+
+    @Autowired
+    private DevicesMapper devicesMapper;
+
+    @Autowired
+    private CamerasMapper camerasMapper;
 
     @RequireRole({Role.SYSTEM_ADMIN, Role.COMMUNITY_ADMIN, Role.RESIDENT, Role.FIREFIGHTER})
     @GetMapping
@@ -96,9 +107,9 @@ public class DevicesController {
 
     /** 绑定摄像头到烟感设备 */
     @RequireRole({Role.SYSTEM_ADMIN, Role.COMMUNITY_ADMIN})
-    @PutMapping("/{smokeDeviceId}/bind-camera/{cameraDeviceId}")
-    public Result<String> bindCamera(@PathVariable Long smokeDeviceId, @PathVariable Long cameraDeviceId) {
-        devicesService.bindCamera(smokeDeviceId, cameraDeviceId);
+    @PutMapping("/{smokeDeviceId}/bind-camera/{cameraId}")
+    public Result<String> bindCamera(@PathVariable Long smokeDeviceId, @PathVariable Long cameraId) {
+        devicesService.bindCamera(smokeDeviceId, cameraId);
         return Result.success("摄像头绑定成功");
     }
 
@@ -130,5 +141,32 @@ public class DevicesController {
                 ? Boolean.valueOf(body.get("sensorFault").toString()) : null;
         devicesService.handleSelfCheck(deviceSn, batteryLevel, sensorFault);
         return Result.success("ok");
+    }
+
+    /**
+     * 获取设备绑定摄像头的最新截图（前端 AiRecognizeApi.getSnapshot）
+     * GET /devices/{deviceId}/snapshot
+     * 返回：{ snapshotUrl: "..." }
+     */
+    @RequireRole({Role.SYSTEM_ADMIN, Role.COMMUNITY_ADMIN, Role.RESIDENT, Role.FIREFIGHTER})
+    @GetMapping("/{deviceId}/snapshot")
+    public Result<Map<String, Object>> getSnapshot(@PathVariable Long deviceId) {
+        Devices device = devicesMapper.selectById(deviceId);
+        if (device == null) {
+            return Result.success(Map.of("snapshotUrl", "", "deviceName", "", "deviceId", String.valueOf(deviceId)));
+        }
+        Map<String, Object> result = new HashMap<>();
+        result.put("deviceId", String.valueOf(deviceId));
+        result.put("deviceName", device.getDeviceName());
+        // 通过 devices.bound_camera_id 查 cameras 表
+        String snapshotUrl = "";
+        if (device.getBoundCameraId() != null) {
+            Cameras camera = camerasMapper.selectById(device.getBoundCameraId());
+            if (camera != null && camera.getSnapshotUrl() != null) {
+                snapshotUrl = camera.getSnapshotUrl();
+            }
+        }
+        result.put("snapshotUrl", snapshotUrl);
+        return Result.success(result);
     }
 }

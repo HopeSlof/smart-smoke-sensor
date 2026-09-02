@@ -14,12 +14,14 @@ import java.util.List;
 public interface KnowledgeChunksMapper extends BaseMapper<KnowledgeChunks> {
 
     /**
-     * 基于向量余弦相似度检索最相似的文档块
+     * 基于向量余弦相似度检索最相似的文档块（余弦距离小于 threshold 才返回）
      *
      * @param embeddingStr 查询向量的文本表示（如 [0.1,0.2,...]）
      * @param topK         返回数量
+     * @param threshold    余弦距离阈值（0=完全相同，越小越严格）
      * @return 相似文档列表（按相似度降序）
      */
     List<KnowledgeChunks> searchByEmbedding(@Param("embeddingStr") String embeddingStr,
-                                            @Param("topK") int topK);
+                                            @Param("topK") int topK,
+                                            @Param("threshold") double threshold);
 }
